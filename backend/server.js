@@ -313,17 +313,41 @@ app.post('/api/sync/fireflies', async (req, res) => {
       return res.json({ message: 'Todas as reuniões já estão sincronizadas.', imported: 0 });
     }
 
+    // Salvar registros como 'processing' imediatamente usando metadados já disponíveis
+    // Assim aparecem no dashboard na hora, mesmo antes da transcrição ser buscada
+    const metaMap = {};
+    transcripts.forEach(t => { metaMap[t.id] = t; });
+
+    for (const firefliesId of unprocessedIds) {
+      const meta = metaMap[firefliesId] || {};
+      await supabase.rpc('process_webhook_meeting', {
+        p_user_id: userId,
+        p_fireflies_id: firefliesId,
+        p_title: meta.title || 'Reunião Importada',
+        p_date: meta.date ? new Date(meta.date).toISOString() : new Date().toISOString(),
+        p_duration: meta.duration || 0,
+        p_status: 'processing',
+        p_meeting_type: null, p_objective: null, p_executive_summary: null,
+        p_decisions: null, p_action_items: null, p_transcript: null,
+        p_productivity_score: null, p_productivity_reason: null
+      });
+    }
+
     res.status(202).json({
-      message: `Sincronizando ${unprocessedIds.length} reunião(ões). Aguarde alguns instantes e atualize a página.`,
+      message: `Sincronizando ${unprocessedIds.length} reunião(ões). Atualize a página para ver.`,
       imported: unprocessedIds.length
     });
 
-    // Processar cada reunião nova em background
-    for (const firefliesId of unprocessedIds) {
-      processMeeting(firefliesId, userId, openai_api_key, fireflies_api_key).catch(err => {
-        console.error(`Erro ao processar ${firefliesId} na sincronização:`, err);
-      });
-    }
+    // Processar cada reunião em background (sequencial para evitar rate limit)
+    (async () => {
+      for (const firefliesId of unprocessedIds) {
+        try {
+          await processMeeting(firefliesId, userId, openai_api_key, fireflies_api_key);
+        } catch (err) {
+          console.error(`Erro ao processar ${firefliesId} na sincronização:`, err);
+        }
+      }
+    })();
 
   } catch (error) {
     console.error('Erro no sync:', error);
