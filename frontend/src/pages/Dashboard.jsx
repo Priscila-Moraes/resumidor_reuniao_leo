@@ -198,8 +198,25 @@ export default function Dashboard() {
             if (response.ok) {
                 setProcessMessage({ type: 'success', text: 'Reunião enviada para processamento! Ela aparecerá em instantes.' });
                 setManualId('');
-                setTimeout(() => fetchMeetings(), 2000);
-                setTimeout(() => fetchMeetings(), 6000);
+                // Adiciona entrada otimista imediatamente para feedback visual
+                setMeetings(prev => {
+                    const alreadyExists = prev.some(m => m.fireflies_id === meetingId);
+                    if (alreadyExists) return prev;
+                    return [{
+                        id: `temp-${meetingId}`,
+                        fireflies_id: meetingId,
+                        title: 'Reunião Importada',
+                        date: new Date().toISOString(),
+                        duration: 0,
+                        status: 'processing',
+                        executive_summary: null,
+                        meeting_type: null,
+                        productivity_score: null,
+                    }, ...prev];
+                });
+                // Busca real do banco para substituir a entrada otimista
+                setTimeout(() => fetchMeetings(), 3000);
+                setTimeout(() => fetchMeetings(), 8000);
             } else {
                 setProcessMessage({ type: 'error', text: data.error || 'Erro ao processar reunião.' });
             }
