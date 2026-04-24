@@ -551,10 +551,6 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Footer */}
-            <footer className="text-center text-xs text-gray-400 py-6 mt-8">
-                Desenvolvido por Leonardo Freire
-            </footer>
         </div>
     );
 }
