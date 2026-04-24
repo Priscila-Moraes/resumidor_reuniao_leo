@@ -177,9 +177,10 @@ export default function Dashboard() {
             const data = await response.json();
 
             if (response.ok) {
-                setProcessMessage({ type: 'success', text: 'Reunião enviada para processamento! Aguarde alguns segundos e atualize a página.' });
+                setProcessMessage({ type: 'success', text: 'Reunião enviada para processamento! Ela aparecerá em instantes.' });
                 setManualId('');
-                setTimeout(() => fetchMeetings(), 8000);
+                setTimeout(() => fetchMeetings(), 2000);
+                setTimeout(() => fetchMeetings(), 6000);
             } else {
                 setProcessMessage({ type: 'error', text: data.error || 'Erro ao processar reunião.' });
             }

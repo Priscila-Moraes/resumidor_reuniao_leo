@@ -71,18 +71,14 @@ app.post('/api/webhooks/fireflies/:user_secret', async (req, res) => {
 async function processMeeting(firefliesId, userId, openAiKey, firefliesApiKey) {
   console.log(`Processando reunião ${firefliesId} para o usuário ${userId}`);
 
-  // A. Buscar transcrição e metadados do Fireflies
-  const transcriptData = await fetchMeetingTranscript(firefliesId, firefliesApiKey);
-  if (!transcriptData) throw new Error("Transcrição não encontrada.");
-
-  // B. Salvar metadados iniciais com status "processing"
-  const { data: meetingRecordId, error: insertError } = await supabase
+  // A. Salvar registro inicial como 'processing' imediatamente para aparecer no dashboard
+  const { error: insertError } = await supabase
     .rpc('process_webhook_meeting', {
       p_user_id: userId,
       p_fireflies_id: firefliesId,
-      p_title: transcriptData.title || 'Reunião Importada',
-      p_date: transcriptData.date ? new Date(transcriptData.date).toISOString() : new Date().toISOString(),
-      p_duration: transcriptData.duration || 0,
+      p_title: 'Reunião Importada',
+      p_date: new Date().toISOString(),
+      p_duration: 0,
       p_meeting_type: null,
       p_objective: null,
       p_executive_summary: null,
@@ -100,6 +96,10 @@ async function processMeeting(firefliesId, userId, openAiKey, firefliesApiKey) {
   }
 
   try {
+    // B. Buscar transcrição e metadados do Fireflies
+    const transcriptData = await fetchMeetingTranscript(firefliesId, firefliesApiKey);
+    if (!transcriptData) throw new Error("Transcrição não encontrada.");
+
     // C. Analisar com OpenAI
     const analysis = await analyzeTranscript(transcriptData.text, openAiKey);
 
@@ -127,24 +127,22 @@ async function processMeeting(firefliesId, userId, openAiKey, firefliesApiKey) {
     console.log(`Reunião ${firefliesId} processada com sucesso!`);
   } catch (error) {
     console.error(`Falha ao processar reunião ${firefliesId}:`, error);
-    if (meetingRecordId) {
-      await supabase.rpc('process_webhook_meeting', {
-        p_user_id: userId,
-        p_fireflies_id: firefliesId,
-        p_title: transcriptData.title || 'Reunião Importada',
-        p_date: transcriptData.date ? new Date(transcriptData.date).toISOString() : new Date().toISOString(),
-        p_duration: transcriptData.duration || 0,
-        p_meeting_type: null,
-        p_objective: null,
-        p_executive_summary: null,
-        p_decisions: null,
-        p_action_items: null,
-        p_transcript: null,
-        p_status: 'error',
-        p_productivity_score: null,
-        p_productivity_reason: null
-      });
-    }
+    await supabase.rpc('process_webhook_meeting', {
+      p_user_id: userId,
+      p_fireflies_id: firefliesId,
+      p_title: 'Reunião Importada',
+      p_date: new Date().toISOString(),
+      p_duration: 0,
+      p_meeting_type: null,
+      p_objective: null,
+      p_executive_summary: null,
+      p_decisions: null,
+      p_action_items: null,
+      p_transcript: null,
+      p_status: 'error',
+      p_productivity_score: null,
+      p_productivity_reason: null
+    });
   }
 }
 
