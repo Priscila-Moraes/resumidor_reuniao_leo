@@ -9,7 +9,20 @@ export default defineConfig({
     react(),
   ],
   server: {
-    host: '0.0.0.0', // Necessário para Docker
-    port: 80,
+    host: true,
+    port: 5173,
+    hmr: {
+      clientPort: 5173,
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
   }
 })

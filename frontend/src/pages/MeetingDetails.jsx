@@ -14,6 +14,7 @@ export default function MeetingDetails() {
     const [meeting, setMeeting] = useState(null);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
+    const [savingCheck, setSavingCheck] = useState(null);
 
     useEffect(() => {
         async function fetchMeeting() {
@@ -30,6 +31,27 @@ export default function MeetingDetails() {
         }
         fetchMeeting();
     }, [id]);
+
+    async function handleCheckItem(idx) {
+        if (!meeting?.action_items) return;
+        setSavingCheck(idx);
+
+        const updatedItems = meeting.action_items.map((item, i) =>
+            i === idx ? { ...item, checked: !item.checked } : item
+        );
+
+        const { error } = await supabase
+            .from('meetings')
+            .update({ action_items: updatedItems })
+            .eq('id', meeting.id);
+
+        if (!error) {
+            setMeeting(prev => ({ ...prev, action_items: updatedItems }));
+        } else {
+            setToast({ message: 'Erro ao salvar item.', type: 'error' });
+        }
+        setSavingCheck(null);
+    }
 
     function formatActionItem(item) {
         if (typeof item === 'string') return item;
@@ -554,9 +576,15 @@ export default function MeetingDetails() {
                                     const prazo = isObj ? item.prazo : null;
                                     return (
                                         <li key={idx} className="flex items-start space-x-3">
-                                            <input type="checkbox" className="mt-1 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                            <input
+                                                type="checkbox"
+                                                checked={!!item.checked}
+                                                disabled={savingCheck === idx}
+                                                onChange={() => handleCheckItem(idx)}
+                                                className="mt-1 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                                            />
                                             <div className="flex-1">
-                                                <span className="text-gray-700 text-sm leading-snug block">{tarefa}</span>
+                                                <span className={`text-sm leading-snug block transition-colors ${item.checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>{tarefa}</span>
                                                 {(resp || prazo) && (
                                                     <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-gray-500">
                                                         {resp && (

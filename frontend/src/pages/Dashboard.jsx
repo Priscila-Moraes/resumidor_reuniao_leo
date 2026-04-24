@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Calendar as CalendarIcon, ChevronDown, Clock, Send, Loader2, Trash2, RefreshCw, X, Pencil, Check } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, ChevronDown, Clock, Send, Loader2, Trash2, RefreshCw, X, Check, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -28,11 +28,23 @@ export default function Dashboard() {
     const [typeFilter, setTypeFilter] = useState('');
     const [showTypeDropdown, setShowTypeDropdown] = useState(false);
 
-    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const backendUrl = import.meta.env.VITE_API_URL || '';
 
     useEffect(() => {
         fetchMeetings();
     }, []);
+
+    // Auto-refresh enquanto houver reuniões sendo processadas
+    useEffect(() => {
+        const hasProcessing = meetings.some(m => m.status === 'processing');
+        if (!hasProcessing) return;
+
+        const interval = setInterval(() => {
+            fetchMeetings();
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [meetings]);
 
     // Extrair tipos únicos das reuniões
     const meetingTypes = useMemo(() => {
@@ -499,12 +511,24 @@ export default function Dashboard() {
                                     </span>
                                 </div>
 
-                                <div className="mb-3">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getBadgeColor(m.meeting_type)}`}>
-                                        {m.meeting_type || 'Geral'}
-                                    </span>
-                                    {m.productivity_score != null && (
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ml-2 ${
+                                <div className="mb-3 flex items-center flex-wrap gap-2">
+                                    {m.status === 'processing' ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                            Processando...
+                                        </span>
+                                    ) : m.status === 'error' ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                                            <AlertCircle className="w-3 h-3" />
+                                            Erro no processamento
+                                        </span>
+                                    ) : (
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getBadgeColor(m.meeting_type)}`}>
+                                            {m.meeting_type || 'Geral'}
+                                        </span>
+                                    )}
+                                    {m.productivity_score != null && m.status === 'completed' && (
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                                             m.productivity_score >= 7 ? 'bg-green-100 text-green-700' :
                                             m.productivity_score >= 4 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
                                         }`}>
@@ -515,7 +539,11 @@ export default function Dashboard() {
 
                                 <p className="text-gray-700 text-sm truncate">
                                     <span className="font-semibold text-gray-900">Resumo da IA: </span>
-                                    {m.executive_summary || 'Sem resumo disponível.'}
+                                    {m.status === 'processing'
+                                        ? 'A IA está analisando a reunião...'
+                                        : m.status === 'error'
+                                        ? 'Falha no processamento. Use o botão de reprocessar.'
+                                        : m.executive_summary || 'Sem resumo disponível.'}
                                 </p>
                             </div>
                         ))

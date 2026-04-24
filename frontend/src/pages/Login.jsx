@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { BrainCircuit } from 'lucide-react';
 
 export default function Login() {
@@ -99,9 +99,9 @@ export default function Login() {
 
                                 <div className="flex items-center justify-start">
                                     <div className="text-sm">
-                                        <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
+                                        <Link to="/recuperar-senha" className="font-medium text-blue-600 hover:text-blue-500">
                                             Esqueceu a senha?
-                                        </a>
+                                        </Link>
                                     </div>
                                 </div>
 
@@ -155,7 +155,10 @@ export default function Login() {
                             </div>
 
                             <div className="mt-8 text-center text-sm text-gray-600">
-                                Não tem uma conta? <a href="#" className="font-medium text-[#2f5c96] hover:underline">Cadastre-se</a>
+                                Não tem uma conta?{' '}
+                                <Link to="/cadastro" className="font-medium text-[#2f5c96] hover:underline">
+                                    Cadastre-se
+                                </Link>
                             </div>
                         </div>
                     </div>

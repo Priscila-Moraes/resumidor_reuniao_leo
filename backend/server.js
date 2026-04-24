@@ -264,6 +264,43 @@ app.post('/api/meetings/:meetingId/reprocess', async (req, res) => {
   }
 });
 
+// Endpoint para validar as chaves de API do usuário
+app.post('/api/validate-keys', async (req, res) => {
+  const { openai_key, fireflies_key } = req.body;
+  const result = { openai: null, fireflies: null };
+
+  if (openai_key) {
+    try {
+      const OpenAI = require('openai');
+      const openai = new OpenAI({ apiKey: openai_key });
+      await openai.models.list();
+      result.openai = { valid: true, message: 'Chave válida' };
+    } catch (err) {
+      result.openai = { valid: false, message: 'Chave inválida ou sem permissão' };
+    }
+  }
+
+  if (fireflies_key) {
+    try {
+      const axios = require('axios');
+      const response = await axios.post(
+        'https://api.fireflies.ai/graphql',
+        { query: '{ user { email } }' },
+        { headers: { 'Authorization': `Bearer ${fireflies_key}`, 'Content-Type': 'application/json' } }
+      );
+      if (response.data?.errors) {
+        result.fireflies = { valid: false, message: 'Chave inválida ou sem permissão' };
+      } else {
+        result.fireflies = { valid: true, message: 'Chave válida' };
+      }
+    } catch (err) {
+      result.fireflies = { valid: false, message: 'Chave inválida ou erro de conexão' };
+    }
+  }
+
+  res.json(result);
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Backend rodando na porta ${PORT}`);

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { KeyRound, ShieldAlert, Copy, CheckCircle, Flame } from 'lucide-react';
+import { KeyRound, ShieldAlert, Copy, CheckCircle, Flame, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import Toast from '../components/Toast';
 
 export default function Settings() {
@@ -13,10 +13,13 @@ export default function Settings() {
     const [saving, setSaving] = useState(false);
     const [copied, setCopied] = useState(false);
     const [toast, setToast] = useState(null);
+    const [validating, setValidating] = useState(false);
+    const [validation, setValidation] = useState({ openai: null, fireflies: null });
 
-    // URL base do backend para gerar o link do Webhook
-    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    const webhookBaseUrl = `${backendUrl}/api/webhooks/fireflies/`;
+    const backendUrl = import.meta.env.VITE_API_URL || '';
+
+    // Webhook URL usa o domínio atual do browser (nginx faz proxy para o backend)
+    const webhookBaseUrl = `${window.location.origin}/api/webhooks/fireflies/`;
 
     useEffect(() => {
         async function loadProfile() {
@@ -36,6 +39,23 @@ export default function Settings() {
         }
         loadProfile();
     }, [user]);
+
+    const handleValidateKeys = async () => {
+        setValidating(true);
+        setValidation({ openai: null, fireflies: null });
+        try {
+            const response = await fetch(`${backendUrl}/api/validate-keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ openai_key: openAiKey, fireflies_key: firefliesKey }),
+            });
+            const data = await response.json();
+            setValidation(data);
+        } catch {
+            setToast({ message: 'Erro de conexão com o backend.', type: 'error' });
+        }
+        setValidating(false);
+    };
 
     const handleSave = async (e) => {
         e.preventDefault();
@@ -125,13 +145,46 @@ export default function Settings() {
                     </div>
                 </div>
 
-                <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50 mb-8"
-                >
-                    {saving ? 'Salvando...' : 'Salvar Configurações'}
-                </button>
+                <div className="flex flex-wrap items-center gap-3 mb-8">
+                    <button
+                        type="submit"
+                        disabled={saving}
+                        className="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                    >
+                        {saving ? 'Salvando...' : 'Salvar Configurações'}
+                    </button>
+
+                    <button
+                        type="button"
+                        disabled={validating || (!openAiKey && !firefliesKey)}
+                        onClick={handleValidateKeys}
+                        className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        {validating ? 'Testando...' : 'Testar conexão'}
+                    </button>
+                </div>
+
+                {(validation.openai || validation.fireflies) && (
+                    <div className="mb-8 flex flex-col gap-2">
+                        {validation.openai && (
+                            <div className={`flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg border ${validation.openai.valid ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                                {validation.openai.valid
+                                    ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                    : <XCircle className="w-4 h-4 shrink-0" />}
+                                <span><strong>OpenAI:</strong> {validation.openai.message}</span>
+                            </div>
+                        )}
+                        {validation.fireflies && (
+                            <div className={`flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg border ${validation.fireflies.valid ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                                {validation.fireflies.valid
+                                    ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                    : <XCircle className="w-4 h-4 shrink-0" />}
+                                <span><strong>Fireflies:</strong> {validation.fireflies.message}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
             </form>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
