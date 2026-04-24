@@ -328,19 +328,21 @@ export default function Dashboard() {
             )}
 
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
-                <h1 className="text-3xl font-extrabold text-gray-900 mb-4 md:mb-0">Painel de Reuniões</h1>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex flex-col md:flex-row md:items-start justify-between mb-8">
+                <div className="flex items-center gap-4 mb-4 md:mb-0">
+                    <h1 className="text-3xl font-extrabold text-gray-900">Painel de Reuniões</h1>
                     <button
                         onClick={handleSync}
                         disabled={syncing}
-                        className="flex items-center justify-center gap-1.5 px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 transition disabled:opacity-50 whitespace-nowrap"
                         title="Sincronizar reuniões recentes do Fireflies"
                     >
-                        {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                         {syncing ? 'Sincronizando...' : 'Sincronizar Fireflies'}
                     </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <Search className="h-5 w-5 text-gray-400" />
