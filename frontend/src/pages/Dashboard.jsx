@@ -199,20 +199,21 @@ export default function Dashboard() {
                 setProcessMessage({ type: 'success', text: 'Reunião enviada para processamento! Ela aparecerá em instantes.' });
                 setManualId('');
                 // Salva registro 'processing' direto no Supabase (usuário autenticado)
-                // Garante que aparece no painel mesmo se o backend falhar silenciosamente
-                const { data: inserted } = await supabase
+                const { data: inserted, error: insertError } = await supabase
                     .from('meetings')
-                    .upsert({
+                    .insert({
                         user_id: user.id,
                         fireflies_id: meetingId,
                         title: 'Reunião Importada',
                         date: new Date().toISOString(),
                         duration: 0,
                         status: 'processing',
-                    }, { onConflict: 'fireflies_id', ignoreDuplicates: false })
+                    })
                     .select()
                     .single();
-                if (inserted) {
+                if (insertError) {
+                    setProcessMessage({ type: 'error', text: `Erro ao salvar no banco: ${insertError.message} (código: ${insertError.code})` });
+                } else if (inserted) {
                     setMeetings(prev => {
                         const filtered = prev.filter(m => m.fireflies_id !== meetingId);
                         return [inserted, ...filtered];
