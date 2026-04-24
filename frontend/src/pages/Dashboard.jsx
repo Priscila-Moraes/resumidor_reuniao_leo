@@ -331,7 +331,7 @@ export default function Dashboard() {
             <div className="mb-8">
                 {/* Linha 1: Título + botão sincronizar */}
                 <div className="flex items-center gap-4 mb-4">
-                    <h1 className="text-3xl font-extrabold text-gray-900 whitespace-nowrap">Painel de Reuniões</h1>
+                    <h1 className="text-2xl font-extrabold text-gray-900 whitespace-nowrap">Painel de Reuniões</h1>
                     <button
                         onClick={handleSync}
                         disabled={syncing}
