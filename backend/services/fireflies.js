@@ -40,6 +40,15 @@ async function fetchMeetingTranscript(firefliesId, apiKey) {
             }
         );
 
+        if (response.data?.errors) {
+            const err = response.data.errors[0];
+            if (err?.code === 'too_many_requests' || err?.extensions?.status === 429) {
+                const retryAfter = err?.extensions?.metadata?.retryAfter;
+                const retryDate = retryAfter ? new Date(retryAfter).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'meia-noite';
+                throw Object.assign(new Error(`Limite diário do Fireflies atingido. Tente novamente após ${retryDate}.`), { code: 'rate_limit' });
+            }
+        }
+
         const transcriptData = response.data?.data?.transcript;
         if (!transcriptData) {
             throw new Error(`Transcrição não encontrada para ID: ${firefliesId}. Resposta Fireflies: ${JSON.stringify(response.data)}`);
