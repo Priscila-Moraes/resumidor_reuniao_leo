@@ -198,24 +198,27 @@ export default function Dashboard() {
             if (response.ok) {
                 setProcessMessage({ type: 'success', text: 'Reunião enviada para processamento! Ela aparecerá em instantes.' });
                 setManualId('');
-                // Salva registro 'processing' direto no Supabase (usuário autenticado)
-                const { data: inserted, error: insertError } = await supabase
-                    .from('meetings')
-                    .insert({
-                        user_id: user.id,
-                        fireflies_id: meetingId,
-                        title: 'Reunião Importada',
-                        duration: 0,
-                        status: 'processing',
-                    })
-                    .select()
-                    .single();
+                // Salva registro 'processing' via RPC (não depende do cache do schema)
+                const { data: insertedRow, error: insertError } = await supabase
+                    .rpc('create_processing_meeting', { p_fireflies_id: meetingId });
                 if (insertError) {
                     setProcessMessage({ type: 'error', text: `Erro ao salvar no banco: ${insertError.message} (código: ${insertError.code})` });
-                } else if (inserted) {
+                } else {
+                    const inserted = typeof insertedRow === 'object' ? insertedRow : null;
                     setMeetings(prev => {
                         const filtered = prev.filter(m => m.fireflies_id !== meetingId);
-                        return [inserted, ...filtered];
+                        const newEntry = inserted || {
+                            id: `temp-${meetingId}`,
+                            fireflies_id: meetingId,
+                            title: 'Reunião Importada',
+                            date: new Date().toISOString(),
+                            duration: 0,
+                            status: 'processing',
+                            executive_summary: null,
+                            meeting_type: null,
+                            productivity_score: null,
+                        };
+                        return [newEntry, ...filtered];
                     });
                 }
                 setTimeout(() => fetchMeetings(), 5000);
