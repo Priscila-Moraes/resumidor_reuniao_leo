@@ -65,27 +65,30 @@ Retorne este JSON exato:
 }
   `;
 
+    const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
+
     try {
-        const response = await openai.responses.create({
+        const apiCall = openai.responses.create({
             model: 'gpt-5-mini',
             instructions: systemPrompt,
             input: `Analise a transcrição abaixo e retorne o resultado em formato json.\n\nAqui está a transcrição completa:\n\n${transcriptText}`,
-            text: {
-                format: {
-                    type: 'json_object'
-                }
-            },
-            reasoning: {
-                effort: 'low'
-            },
+            text: { format: { type: 'json_object' } },
+            reasoning: { effort: 'low' },
             store: false
         });
+
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('OpenAI timeout: análise demorou mais de 5 minutos')), TIMEOUT_MS)
+        );
+
+        const response = await Promise.race([apiCall, timeout]);
+        console.log(`OpenAI respondeu. Tokens usados: ${response.usage?.total_tokens || 'N/A'}`);
 
         const parsedData = JSON.parse(response.output_text);
         return parsedData;
 
     } catch (error) {
-        console.error("Erro na integração com OpenAI:", error);
+        console.error("Erro na integração com OpenAI:", error?.message || error?.status || error);
         throw error;
     }
 }
