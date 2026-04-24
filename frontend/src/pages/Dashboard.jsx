@@ -146,12 +146,31 @@ export default function Dashboard() {
         setSyncing(false);
     }
 
+    function extractFirefliesId(value) {
+        const trimmed = value.trim();
+        // URL formato: https://app.fireflies.ai/view/Titulo::ID
+        if (trimmed.includes('::')) {
+            return trimmed.split('::').pop();
+        }
+        // URL sem :: — pegar último segmento do path
+        try {
+            const url = new URL(trimmed);
+            const parts = url.pathname.split('/').filter(Boolean);
+            if (parts.length > 0) return parts[parts.length - 1];
+        } catch {
+            // não é URL, usar como está
+        }
+        return trimmed;
+    }
+
     async function handleManualProcess(e) {
         e.preventDefault();
         if (!manualId.trim()) return;
 
         setProcessing(true);
         setProcessMessage(null);
+
+        const meetingId = extractFirefliesId(manualId);
 
         try {
             const { data: profile, error: profileError } = await supabase
@@ -171,7 +190,7 @@ export default function Dashboard() {
             const response = await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ meetingId: manualId.trim() }),
+                body: JSON.stringify({ meetingId }),
             });
 
             const data = await response.json();
@@ -479,7 +498,7 @@ export default function Dashboard() {
                         type="text"
                         value={manualId}
                         onChange={(e) => setManualId(e.target.value)}
-                        placeholder="Cole o Meeting ID do Fireflies aqui..."
+                        placeholder="Cole o link ou ID da reunião do Fireflies aqui..."
                         className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-blue-500 focus:border-blue-500"
                         disabled={processing}
                     />
