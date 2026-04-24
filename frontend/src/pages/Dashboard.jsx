@@ -205,7 +205,6 @@ export default function Dashboard() {
                         user_id: user.id,
                         fireflies_id: meetingId,
                         title: 'Reunião Importada',
-                        date: new Date().toISOString(),
                         duration: 0,
                         status: 'processing',
                     })
