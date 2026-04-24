@@ -87,6 +87,12 @@ async function fetchRecentTranscriptIds(apiKey, limit = 20) {
     );
 
     if (response.data?.errors) {
+        const err = response.data.errors[0];
+        if (err?.code === 'too_many_requests' || err?.extensions?.status === 429) {
+            const retryAfter = err?.extensions?.metadata?.retryAfter;
+            const retryDate = retryAfter ? new Date(retryAfter).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'meia-noite';
+            throw Object.assign(new Error(`Limite diário do Fireflies atingido. Tente novamente após ${retryDate}.`), { code: 'rate_limit' });
+        }
         throw new Error(`Fireflies API error: ${JSON.stringify(response.data.errors)}`);
     }
 
