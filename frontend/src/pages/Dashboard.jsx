@@ -328,9 +328,10 @@ export default function Dashboard() {
             )}
 
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-start justify-between mb-8">
-                <div className="flex items-center gap-4 mb-4 md:mb-0">
-                    <h1 className="text-3xl font-extrabold text-gray-900">Painel de Reuniões</h1>
+            <div className="mb-8">
+                {/* Linha 1: Título + botão sincronizar */}
+                <div className="flex items-center gap-4 mb-4">
+                    <h1 className="text-3xl font-extrabold text-gray-900 whitespace-nowrap">Painel de Reuniões</h1>
                     <button
                         onClick={handleSync}
                         disabled={syncing}
@@ -342,6 +343,7 @@ export default function Dashboard() {
                     </button>
                 </div>
 
+                {/* Linha 2: Filtros */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
