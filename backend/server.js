@@ -68,81 +68,69 @@ app.post('/api/webhooks/fireflies/:user_secret', async (req, res) => {
   }
 });
 
+async function updateMeetingStatus(firefliesId, userId, status, fields = {}) {
+  const { error } = await supabase.rpc('process_webhook_meeting', {
+    p_user_id: userId,
+    p_fireflies_id: firefliesId,
+    p_title: fields.title || 'Reunião Importada',
+    p_date: fields.date || new Date().toISOString(),
+    p_duration: fields.duration || 0,
+    p_meeting_type: fields.meeting_type || null,
+    p_objective: fields.objective || null,
+    p_executive_summary: fields.executive_summary || null,
+    p_decisions: fields.decisions || null,
+    p_action_items: fields.action_items || null,
+    p_transcript: fields.transcript || null,
+    p_status: status,
+    p_productivity_score: fields.productivity_score || null,
+    p_productivity_reason: fields.productivity_reason || null,
+    p_topics_discussed: fields.topics_discussed || null,
+    p_pendencies: fields.pendencies || null,
+    p_productivity_criteria: fields.productivity_criteria || null,
+  });
+  if (error) console.error(`[DB] Erro ao atualizar status '${status}' para ${firefliesId}:`, error.message);
+  return !error;
+}
+
 async function processMeeting(firefliesId, userId, openAiKey, firefliesApiKey) {
-  console.log(`Processando reunião ${firefliesId} para o usuário ${userId}`);
-
-  // A. Salvar registro inicial como 'processing' imediatamente para aparecer no dashboard
-  const { error: insertError } = await supabase
-    .rpc('process_webhook_meeting', {
-      p_user_id: userId,
-      p_fireflies_id: firefliesId,
-      p_title: 'Reunião Importada',
-      p_date: new Date().toISOString(),
-      p_duration: 0,
-      p_meeting_type: null,
-      p_objective: null,
-      p_executive_summary: null,
-      p_decisions: null,
-      p_action_items: null,
-      p_transcript: null,
-      p_status: 'processing',
-      p_productivity_score: null,
-      p_productivity_reason: null
-    });
-
-  if (insertError) {
-    console.error("Erro ao inserir reunião inicial:", insertError);
-    return;
-  }
+  console.log(`[START] Processando ${firefliesId}`);
 
   try {
-    // B. Buscar transcrição e metadados do Fireflies
+    // A. Buscar transcrição do Fireflies
+    console.log(`[FIREFLIES] Buscando transcrição de ${firefliesId}...`);
     const transcriptData = await fetchMeetingTranscript(firefliesId, firefliesApiKey);
-    if (!transcriptData) throw new Error("Transcrição não encontrada.");
+    if (!transcriptData) throw new Error("Transcrição não encontrada no Fireflies.");
+    console.log(`[FIREFLIES] Transcrição obtida. ${transcriptData.sentences?.length || 0} frases.`);
 
-    // C. Analisar com OpenAI
+    // B. Analisar com OpenAI
+    console.log(`[OPENAI] Iniciando análise de ${firefliesId}...`);
     const analysis = await analyzeTranscript(transcriptData.text, openAiKey);
+    console.log(`[OPENAI] Análise concluída para ${firefliesId}.`);
 
-    // D. Atualizar com resultado completo
-    await supabase.rpc('process_webhook_meeting', {
-      p_user_id: userId,
-      p_fireflies_id: firefliesId,
-      p_title: analysis.titulo || transcriptData.title || 'Reunião Importada',
-      p_date: transcriptData.date ? new Date(transcriptData.date).toISOString() : new Date().toISOString(),
-      p_duration: transcriptData.duration || 0,
-      p_meeting_type: analysis.tipo_reuniao,
-      p_objective: analysis.objetivo,
-      p_executive_summary: analysis.resumo_executivo,
-      p_decisions: analysis.decisoes,
-      p_action_items: analysis.itens_acao,
-      p_transcript: transcriptData.sentences,
-      p_status: 'completed',
-      p_productivity_score: analysis.aproveitamento_nota,
-      p_productivity_reason: analysis.aproveitamento_motivo,
-      p_topics_discussed: analysis.topicos_discutidos || null,
-      p_pendencies: analysis.pendencias || null,
-      p_productivity_criteria: analysis.aproveitamento_criterios || null
+    // C. Salvar resultado completo
+    const saved = await updateMeetingStatus(firefliesId, userId, 'completed', {
+      title: analysis.titulo || transcriptData.title || 'Reunião Importada',
+      date: transcriptData.date ? new Date(transcriptData.date).toISOString() : new Date().toISOString(),
+      duration: transcriptData.duration || 0,
+      meeting_type: analysis.tipo_reuniao,
+      objective: analysis.objetivo,
+      executive_summary: analysis.resumo_executivo,
+      decisions: analysis.decisoes,
+      action_items: analysis.itens_acao,
+      transcript: transcriptData.sentences,
+      productivity_score: analysis.aproveitamento_nota,
+      productivity_reason: analysis.aproveitamento_motivo,
+      topics_discussed: analysis.topicos_discutidos || null,
+      pendencies: analysis.pendencias || null,
+      productivity_criteria: analysis.aproveitamento_criterios || null,
     });
 
-    console.log(`Reunião ${firefliesId} processada com sucesso!`);
+    if (saved) console.log(`[DONE] Reunião ${firefliesId} processada com sucesso.`);
+
   } catch (error) {
-    console.error(`Falha ao processar reunião ${firefliesId}:`, error);
-    await supabase.rpc('process_webhook_meeting', {
-      p_user_id: userId,
-      p_fireflies_id: firefliesId,
-      p_title: 'Reunião Importada',
-      p_date: new Date().toISOString(),
-      p_duration: 0,
-      p_meeting_type: null,
-      p_objective: null,
-      p_executive_summary: null,
-      p_decisions: null,
-      p_action_items: null,
-      p_transcript: null,
-      p_status: 'error',
-      p_productivity_score: null,
-      p_productivity_reason: null
-    });
+    const msg = error?.message || String(error);
+    console.error(`[ERROR] Falha ao processar ${firefliesId}: ${msg}`);
+    await updateMeetingStatus(firefliesId, userId, 'error', {});
   }
 }
 
