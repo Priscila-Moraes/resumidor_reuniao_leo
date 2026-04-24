@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
-const { fetchMeetingTranscript } = require('./services/fireflies');
+const { fetchMeetingTranscript, fetchRecentTranscriptIds } = require('./services/fireflies');
 const { analyzeTranscript } = require('./services/openai');
 
 const app = express();
@@ -260,6 +260,75 @@ app.post('/api/meetings/:meetingId/reprocess', async (req, res) => {
     console.error('Erro no reprocess:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Erro interno ao reprocessar.' });
+    }
+  }
+});
+
+// Endpoint para sincronizar todas as reuniões recentes do Fireflies
+app.post('/api/sync/fireflies', async (req, res) => {
+  const { user_secret } = req.body;
+
+  if (!user_secret) {
+    return res.status(400).json({ error: 'user_secret é obrigatório' });
+  }
+
+  try {
+    const { data: profile, error: profileError } = await supabase
+      .rpc('get_profile_by_webhook_secret', { p_secret: user_secret });
+
+    if (profileError || !profile || profile.length === 0) {
+      return res.status(401).json({ error: 'Secret inválido ou usuário não encontrado.' });
+    }
+
+    const { id: userId, openai_api_key, fireflies_api_key } = profile[0];
+
+    if (!fireflies_api_key) {
+      return res.status(400).json({ error: 'Fireflies API Key não configurada.' });
+    }
+    if (!openai_api_key) {
+      return res.status(400).json({ error: 'OpenAI API Key não configurada.' });
+    }
+
+    // Buscar lista de transcrições recentes no Fireflies
+    const transcripts = await fetchRecentTranscriptIds(fireflies_api_key, 20);
+
+    if (!transcripts.length) {
+      return res.json({ message: 'Nenhuma reunião encontrada no Fireflies.', imported: 0 });
+    }
+
+    const allIds = transcripts.map(t => t.id);
+
+    // Filtrar apenas os que ainda não foram processados com sucesso
+    const { data: unprocessed, error: checkError } = await supabase
+      .rpc('get_unprocessed_fireflies_ids', { p_user_id: userId, p_fireflies_ids: allIds });
+
+    if (checkError) {
+      console.error('Erro ao verificar IDs:', checkError);
+      return res.status(500).json({ error: 'Erro ao verificar reuniões existentes.' });
+    }
+
+    const unprocessedIds = (unprocessed || []).map(r => r.fireflies_id);
+
+    if (!unprocessedIds.length) {
+      return res.json({ message: 'Todas as reuniões já estão sincronizadas.', imported: 0 });
+    }
+
+    res.status(202).json({
+      message: `Sincronizando ${unprocessedIds.length} reunião(ões). Aguarde alguns instantes e atualize a página.`,
+      imported: unprocessedIds.length
+    });
+
+    // Processar cada reunião nova em background
+    for (const firefliesId of unprocessedIds) {
+      processMeeting(firefliesId, userId, openai_api_key, fireflies_api_key).catch(err => {
+        console.error(`Erro ao processar ${firefliesId} na sincronização:`, err);
+      });
+    }
+
+  } catch (error) {
+    console.error('Erro no sync:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Erro ao sincronizar: ' + error.message });
     }
   }
 });

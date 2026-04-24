@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Calendar as CalendarIcon, ChevronDown, Clock, Send, Loader2, Trash2, RefreshCw, X, Check, AlertCircle } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, ChevronDown, Clock, Send, Loader2, Trash2, RefreshCw, X, Check, AlertCircle, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -29,6 +29,10 @@ export default function Dashboard() {
     const [showTypeDropdown, setShowTypeDropdown] = useState(false);
 
     const backendUrl = import.meta.env.VITE_API_URL || '';
+    const dateInputRef = useRef(null);
+
+    const [syncing, setSyncing] = useState(false);
+    const [syncMessage, setSyncMessage] = useState(null);
 
     useEffect(() => {
         fetchMeetings();
@@ -100,6 +104,46 @@ export default function Dashboard() {
             setMeetings(data);
         }
         setLoading(false);
+    }
+
+    async function handleSync() {
+        setSyncing(true);
+        setSyncMessage(null);
+
+        try {
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('fireflies_webhook_secret')
+                .eq('id', user.id)
+                .single();
+
+            if (profileError || !profile?.fireflies_webhook_secret) {
+                setSyncMessage({ type: 'error', text: 'Webhook secret não encontrado. Verifique seu perfil.' });
+                setSyncing(false);
+                return;
+            }
+
+            const response = await fetch(`${backendUrl}/api/sync/fireflies`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_secret: profile.fireflies_webhook_secret }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok || response.status === 202) {
+                setSyncMessage({ type: 'success', text: data.message });
+                if (data.imported > 0) {
+                    setTimeout(() => fetchMeetings(), 8000);
+                }
+            } else {
+                setSyncMessage({ type: 'error', text: data.error || 'Erro ao sincronizar.' });
+            }
+        } catch (err) {
+            setSyncMessage({ type: 'error', text: 'Erro de conexão: ' + err.message });
+        }
+
+        setSyncing(false);
     }
 
     async function handleManualProcess(e) {
@@ -284,8 +328,19 @@ export default function Dashboard() {
             )}
 
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
-                <h1 className="text-3xl font-extrabold text-gray-900 mb-4 md:mb-0">Painel de Reuniões</h1>
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+                <div className="flex items-center gap-3 mb-4 md:mb-0">
+                    <h1 className="text-3xl font-extrabold text-gray-900">Painel de Reuniões</h1>
+                    <button
+                        onClick={handleSync}
+                        disabled={syncing}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition disabled:opacity-50 shrink-0"
+                        title="Sincronizar reuniões recentes do Fireflies"
+                    >
+                        {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        {syncing ? 'Sincronizando...' : 'Sincronizar Fireflies'}
+                    </button>
+                </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <div className="relative">
@@ -309,12 +364,16 @@ export default function Dashboard() {
                     <div className="flex items-center gap-3">
                         <div className="relative">
                             <input
+                                ref={dateInputRef}
                                 type="date"
                                 value={dateFilter}
                                 onChange={(e) => setDateFilter(e.target.value)}
-                                className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                                className="sr-only"
                             />
-                            <button className={`flex items-center px-4 py-2 border shadow-sm text-sm font-medium rounded-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${dateFilter ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'}`}>
+                            <button
+                                onClick={() => dateInputRef.current?.showPicker()}
+                                className={`flex items-center px-4 py-2 border shadow-sm text-sm font-medium rounded-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${dateFilter ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'}`}
+                            >
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {dateFilter ? format(parseISO(dateFilter), "d MMM yyyy", { locale: ptBR }) : 'Data'}
                                 {dateFilter && (
@@ -370,6 +429,16 @@ export default function Dashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* Mensagem de sincronização */}
+            {syncMessage && (
+                <div className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium flex items-center justify-between ${syncMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    <span>{syncMessage.text}</span>
+                    <button onClick={() => setSyncMessage(null)} className="ml-3 opacity-60 hover:opacity-100">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
 
             {/* Filtros ativos */}
             {hasActiveFilters && (
