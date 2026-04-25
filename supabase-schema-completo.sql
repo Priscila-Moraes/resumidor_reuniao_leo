@@ -1,8 +1,20 @@
 -- ============================================================
 -- AI Meet — Schema Completo e Atualizado
--- Estado atual após todas as migrations (v1 a v5)
+-- Estado atual após todas as migrations (v1 a v6)
 -- Execute do zero para recriar o banco do zero corretamente
 -- ============================================================
+--
+-- Registro técnico mais recente:
+--   v6 (25/04/2026)
+--   - Corrige unicidade multi-tenant de reuniões:
+--     de UNIQUE(fireflies_id) para UNIQUE(user_id, fireflies_id).
+--   - Atualiza os UPSERTs das RPCs process_webhook_meeting e
+--     create_processing_meeting para ON CONFLICT (user_id, fireflies_id).
+--   - Complementa ajustes de segurança/UX feitos no backend e frontend:
+--     CORS_ORIGIN configurável, rate limit básico, badges de status
+--     processing/error e texto honesto sobre proteção de API keys via RLS.
+--   - Commit relacionado: 8a929a0 Improve meeting processing security and UX
+--
 
 -- EXTENSÕES
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -27,7 +39,7 @@ CREATE TABLE IF NOT EXISTS public.meetings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   fireflies_id TEXT NOT NULL,
-  CONSTRAINT unique_fireflies_id UNIQUE (fireflies_id),
+  CONSTRAINT unique_user_fireflies_id UNIQUE (user_id, fireflies_id),
 
   -- Colunas em inglês (usadas pelo backend e frontend)
   title TEXT NOT NULL DEFAULT 'Reunião Importada',
@@ -178,7 +190,7 @@ BEGIN
     p_productivity_score, p_productivity_reason,
     p_topics_discussed, p_pendencies, p_productivity_criteria
   )
-  ON CONFLICT (fireflies_id) DO UPDATE SET
+  ON CONFLICT (user_id, fireflies_id) DO UPDATE SET
     title = EXCLUDED.title,
     date = EXCLUDED.date,
     duration = EXCLUDED.duration,
@@ -267,9 +279,8 @@ BEGIN
 
   INSERT INTO public.meetings (user_id, fireflies_id, title, date, duration, status)
   VALUES (v_uid, p_fireflies_id, 'Reunião Importada', NOW(), 0, 'processing')
-  ON CONFLICT (fireflies_id) DO UPDATE SET
-    status = 'processing',
-    user_id = v_uid
+  ON CONFLICT (user_id, fireflies_id) DO UPDATE SET
+    status = 'processing'
   RETURNING to_jsonb(meetings.*) INTO v_row;
 
   RETURN v_row;
