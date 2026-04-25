@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, Calendar as CalendarIcon, ChevronDown, Clock, Send, Loader2, Trash2, RefreshCw, X, Check, AlertCircle, Download } from 'lucide-react';
@@ -34,9 +34,22 @@ export default function Dashboard() {
     const [syncing, setSyncing] = useState(false);
     const [syncMessage, setSyncMessage] = useState(null);
 
-    useEffect(() => {
-        fetchMeetings();
+    const fetchMeetings = useCallback(async () => {
+        const { data, error } = await supabase
+            .from('meetings')
+            .select('*')
+            .order('date', { ascending: false });
+
+        if (!error && data) {
+            setMeetings(data);
+        }
+        setLoading(false);
     }, []);
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        fetchMeetings();
+    }, [fetchMeetings]);
 
     // Auto-refresh enquanto houver reuniões sendo processadas
     useEffect(() => {
@@ -48,7 +61,7 @@ export default function Dashboard() {
         }, 5000);
 
         return () => clearInterval(interval);
-    }, [meetings]);
+    }, [fetchMeetings, meetings]);
 
     // Extrair tipos únicos das reuniões
     const meetingTypes = useMemo(() => {
@@ -92,18 +105,6 @@ export default function Dashboard() {
         setSearchTerm('');
         setDateFilter('');
         setTypeFilter('');
-    }
-
-    async function fetchMeetings() {
-        const { data, error } = await supabase
-            .from('meetings')
-            .select('*')
-            .order('date', { ascending: false });
-
-        if (!error && data) {
-            setMeetings(data);
-        }
-        setLoading(false);
     }
 
     async function handleSync() {
@@ -348,6 +349,24 @@ export default function Dashboard() {
         return badgeColors[Math.abs(hash) % badgeColors.length];
     };
 
+    const getStatusBadge = (status) => {
+        if (status === 'processing') {
+            return {
+                label: 'Processando',
+                className: 'bg-blue-100 text-blue-700',
+                icon: <Loader2 className="w-3 h-3 animate-spin" />
+            };
+        }
+        if (status === 'error') {
+            return {
+                label: 'Erro',
+                className: 'bg-red-100 text-red-700',
+                icon: <AlertCircle className="w-3 h-3" />
+            };
+        }
+        return null;
+    };
+
     return (
         <div className="p-4 md:p-10 max-w-5xl w-full overflow-hidden">
             {toast && (
@@ -555,12 +574,15 @@ export default function Dashboard() {
                                 : 'Nenhuma reunião encontrada. Configure seu Webhook no app Fireflies.'}
                         </div>
                     ) : (
-                        filteredMeetings.map((m) => (
-                            <div
-                                key={m.id}
-                                className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow transition-shadow cursor-pointer"
-                                onClick={() => navigate(`/reuniao/${m.id}`)}
-                            >
+                        filteredMeetings.map((m) => {
+                            const statusBadge = getStatusBadge(m.status);
+
+                            return (
+                                <div
+                                    key={m.id}
+                                    className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow transition-shadow cursor-pointer"
+                                    onClick={() => navigate(`/reuniao/${m.id}`)}
+                                >
                                 <div className="flex justify-between items-start mb-2">
                                     {editingTitle === m.id ? (
                                         <div className="flex items-center gap-2 flex-1 pr-2" onClick={e => e.stopPropagation()}>
@@ -625,23 +647,17 @@ export default function Dashboard() {
                                     </span>
                                 </div>
 
-                                <div className="mb-3 flex items-center flex-wrap gap-2">
-                                    {m.status === 'processing' ? (
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                                            <Loader2 className="w-3 h-3 animate-spin" />
-                                            Processando...
-                                        </span>
-                                    ) : m.status === 'error' ? (
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                                            <AlertCircle className="w-3 h-3" />
-                                            Erro no processamento
-                                        </span>
-                                    ) : (
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getBadgeColor(m.meeting_type)}`}>
-                                            {m.meeting_type || 'Geral'}
+                                <div className="mb-3 flex flex-wrap items-center gap-2">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getBadgeColor(m.meeting_type)}`}>
+                                        {m.meeting_type || 'Geral'}
+                                    </span>
+                                    {statusBadge && (
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusBadge.className}`}>
+                                            {statusBadge.icon}
+                                            {statusBadge.label}
                                         </span>
                                     )}
-                                    {m.productivity_score != null && m.status === 'completed' && (
+                                    {m.productivity_score != null && (
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                                             m.productivity_score >= 7 ? 'bg-green-100 text-green-700' :
                                             m.productivity_score >= 4 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
@@ -654,13 +670,14 @@ export default function Dashboard() {
                                 <p className="text-gray-700 text-sm truncate">
                                     <span className="font-semibold text-gray-900">Resumo da IA: </span>
                                     {m.status === 'processing'
-                                        ? 'A IA está analisando a reunião...'
+                                        ? 'A análise ainda está em andamento.'
                                         : m.status === 'error'
-                                        ? 'Falha no processamento. Use o botão de reprocessar.'
-                                        : m.executive_summary || 'Sem resumo disponível.'}
+                                            ? 'Falha ao processar. Use o botão de reprocessar.'
+                                            : m.executive_summary || 'Sem resumo disponível.'}
                                 </p>
                             </div>
-                        ))
+                        );
+                        })
                     )}
                 </div>
             )}

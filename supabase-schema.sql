@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS public.meetings (
   productivity_criteria JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW(),
 
-  CONSTRAINT unique_fireflies_id UNIQUE (fireflies_id)
+  CONSTRAINT unique_user_fireflies_id UNIQUE (user_id, fireflies_id)
 );
 
 -- Índice para queries filtradas por usuário
@@ -145,7 +145,7 @@ $$;
 -- 7. RPC: process_webhook_meeting
 -- ============================================================
 -- Usada pelo backend para inserir ou atualizar reuniões.
--- Faz UPSERT pelo fireflies_id (ON CONFLICT).
+-- Faz UPSERT por usuário e fireflies_id (ON CONFLICT).
 -- Contorna RLS (SECURITY DEFINER) para permitir que o backend
 -- insira/atualize sem autenticação de usuário.
 --
@@ -197,7 +197,7 @@ BEGIN
     p_productivity_score, p_productivity_reason,
     p_topics_discussed, p_pendencies, p_productivity_criteria
   )
-  ON CONFLICT (fireflies_id) DO UPDATE SET
+  ON CONFLICT (user_id, fireflies_id) DO UPDATE SET
     title = EXCLUDED.title,
     date = EXCLUDED.date,
     duration = EXCLUDED.duration,

@@ -7,25 +7,47 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const { signIn, signInWithGoogle } = useAuth();
+    const [message, setMessage] = useState('');
+    const [mode, setMode] = useState('login');
+    const { signIn, signUp, resetPassword, signInWithGoogle } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             setError('');
+            setMessage('');
+
+            if (mode === 'reset') {
+                const { error: resetError } = await resetPassword(email);
+                if (resetError) throw resetError;
+                setMessage('Enviamos um email com as instruções para redefinir sua senha.');
+                return;
+            }
+
+            if (mode === 'signup') {
+                const { error: signUpError } = await signUp(email, password);
+                if (signUpError) throw signUpError;
+                setMessage('Cadastro criado. Verifique seu email, se a confirmação estiver habilitada no Supabase.');
+                return;
+            }
+
             const { error: signInError } = await signIn(email, password);
             if (signInError) throw signInError;
             navigate('/dashboard');
-        } catch (err) {
-            setError('Falha ao autenticar. Verifique suas credenciais.');
+        } catch {
+            setError(mode === 'reset'
+                ? 'Não foi possível enviar o email de recuperação.'
+                : mode === 'signup'
+                    ? 'Não foi possível criar a conta. Verifique os dados informados.'
+                    : 'Falha ao autenticar. Verifique suas credenciais.');
         }
     };
 
     const handleGoogleSignIn = async () => {
         try {
             await signInWithGoogle();
-        } catch (error) {
+        } catch {
             setError('Erro no login social.');
         }
     };
@@ -58,9 +80,11 @@ export default function Login() {
             <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:flex-none lg:w-1/2 lg:px-20 xl:px-24">
                 <div className="mx-auto w-full max-w-sm lg:w-96">
                     <div className="text-center">
-                        <h2 className="text-3xl font-extrabold text-gray-900">Bem-vindo de volta</h2>
+                        <h2 className="text-3xl font-extrabold text-gray-900">
+                            {mode === 'signup' ? 'Crie sua conta' : mode === 'reset' ? 'Recuperar senha' : 'Bem-vindo de volta'}
+                        </h2>
                         <p className="mt-2 text-sm text-gray-600">
-                            Faça login no AI Meet
+                            {mode === 'signup' ? 'Comece a usar o AI Meet' : mode === 'reset' ? 'Informe seu email para receber as instruções' : 'Faça login no AI Meet'}
                         </p>
                     </div>
 
@@ -68,6 +92,7 @@ export default function Login() {
                         <div className="mt-6">
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {error && <div className="text-red-500 text-sm text-center font-medium bg-red-50 p-2 rounded">{error}</div>}
+                                {message && <div className="text-green-700 text-sm text-center font-medium bg-green-50 p-2 rounded">{message}</div>}
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Email</label>
@@ -83,6 +108,7 @@ export default function Login() {
                                     </div>
                                 </div>
 
+                                {mode !== 'reset' && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Senha</label>
                                     <div className="mt-1">
@@ -96,7 +122,9 @@ export default function Login() {
                                         />
                                     </div>
                                 </div>
+                                )}
 
+                                {mode === 'login' && (
                                 <div className="flex items-center justify-start">
                                     <div className="text-sm">
                                         <Link to="/recuperar-senha" className="font-medium text-blue-600 hover:text-blue-500">
@@ -104,17 +132,29 @@ export default function Login() {
                                         </Link>
                                     </div>
                                 </div>
+                                )}
 
                                 <div>
                                     <button
                                         type="submit"
                                         className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#2f5c96] hover:bg-[#1e40af] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                                     >
-                                        Entrar
+                                        {mode === 'signup' ? 'Cadastrar' : mode === 'reset' ? 'Enviar email' : 'Entrar'}
                                     </button>
                                 </div>
                             </form>
 
+                            {mode === 'reset' && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setMode('login'); setError(''); setMessage(''); }}
+                                    className="mt-4 w-full text-sm font-medium text-[#2f5c96] hover:underline"
+                                >
+                                    Voltar para login
+                                </button>
+                            )}
+
+                            {mode !== 'reset' && (
                             <div className="mt-6">
                                 <div className="relative">
                                     <div className="absolute inset-0 flex items-center">
@@ -153,6 +193,7 @@ export default function Login() {
                                     </button>
                                 </div>
                             </div>
+                            )}
 
                             <div className="mt-8 text-center text-sm text-gray-600">
                                 Não tem uma conta?{' '}

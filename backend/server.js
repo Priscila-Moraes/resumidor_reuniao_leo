@@ -6,8 +6,44 @@ const { fetchMeetingTranscript, fetchRecentTranscriptIds } = require('./services
 const { analyzeTranscript } = require('./services/openai');
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origem não permitida pelo CORS.'));
+  }
+}));
+app.use(express.json({ limit: '128kb' }));
+
+const rateLimitStore = new Map();
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 30);
+
+function rateLimit(req, res, next) {
+  const secret = req.params.user_secret || req.body?.user_secret || 'global';
+  const key = `${req.ip}:${secret}`;
+  const now = Date.now();
+  const entry = rateLimitStore.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return next();
+  }
+
+  entry.count += 1;
+  if (entry.count > RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: 'Muitas requisições. Tente novamente em instantes.' });
+  }
+
+  return next();
+}
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
@@ -22,14 +58,18 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK' });
 });
 
-app.post('/api/webhooks/fireflies/:user_secret', async (req, res) => {
+app.post('/api/webhooks/fireflies/:user_secret', rateLimit, async (req, res) => {
   const { user_secret } = req.params;
   const { meetingId } = req.body;
 
   console.log('Webhook recebido:', JSON.stringify(req.body));
 
-  if (!meetingId) {
+  if (!meetingId || typeof meetingId !== 'string') {
     return res.status(400).json({ error: 'meetingId é obrigatório' });
+  }
+
+  if (meetingId.length > 200) {
+    return res.status(400).json({ error: 'meetingId inválido' });
   }
 
   try {
@@ -135,11 +175,11 @@ async function processMeeting(firefliesId, userId, openAiKey, firefliesApiKey) {
 }
 
 // Endpoint para reprocessar análise usando transcrição já salva no banco
-app.post('/api/meetings/:meetingId/reprocess', async (req, res) => {
+app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
   const { meetingId } = req.params;
   const { user_secret } = req.body;
 
-  if (!user_secret) {
+  if (!user_secret || typeof user_secret !== 'string') {
     return res.status(400).json({ error: 'user_secret é obrigatório' });
   }
 

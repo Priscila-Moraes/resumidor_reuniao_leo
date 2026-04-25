@@ -116,7 +116,7 @@ export default function Settings() {
                                 placeholder="sk-..."
                                 className="w-full max-w-xl px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
                             />
-                            <p className="mt-2 text-sm text-gray-500">Sua chave é armazenada de forma segura e criptografada (RLS) no banco de dados. Apenas você tem acesso.</p>
+                            <p className="mt-2 text-sm text-gray-500">Sua chave fica protegida pelas políticas de acesso do Supabase (RLS). Para produção, considere criptografia adicional no banco.</p>
                         </div>
                     </div>
                 </div>
@@ -140,7 +140,7 @@ export default function Settings() {
                                 placeholder="Sua chave da API do Fireflies"
                                 className="w-full max-w-xl px-4 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 text-sm font-mono"
                             />
-                            <p className="mt-2 text-sm text-gray-500">Encontre sua chave em <a href="https://app.fireflies.ai/integrations/custom/fireflies" target="_blank" rel="noopener noreferrer" className="text-orange-600 underline hover:text-orange-700">fireflies.ai/integrations</a>. Armazenada de forma segura via RLS.</p>
+                            <p className="mt-2 text-sm text-gray-500">Encontre sua chave em <a href="https://app.fireflies.ai/integrations/custom/fireflies" target="_blank" rel="noopener noreferrer" className="text-orange-600 underline hover:text-orange-700">fireflies.ai/integrations</a>. Protegida pelas políticas de acesso do Supabase (RLS).</p>
                         </div>
                     </div>
                 </div>

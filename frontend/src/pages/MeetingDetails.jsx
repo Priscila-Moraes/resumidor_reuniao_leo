@@ -270,7 +270,7 @@ export default function MeetingDetails() {
                 doc.setFont('helvetica', 'normal');
                 const text = decision.replace(/^- /, '');
                 const lines = doc.splitTextToSize(text, contentWidth - 16);
-                lines.forEach((line, i) => {
+                lines.forEach((line) => {
                     checkPageBreak(6);
                     doc.text(line, margin + 12, y);
                     y += 5;
@@ -332,7 +332,7 @@ export default function MeetingDetails() {
             doc.text('Itens de Acao', margin + 6, y + 6);
             y += 14;
 
-            meeting.action_items.forEach((item, idx) => {
+            meeting.action_items.forEach((item) => {
                 checkPageBreak(10);
 
                 // Checkbox

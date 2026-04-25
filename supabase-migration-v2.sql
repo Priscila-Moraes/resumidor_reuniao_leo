@@ -11,7 +11,32 @@ ALTER TABLE public.meetings
   ADD COLUMN IF NOT EXISTS pendencies JSONB,
   ADD COLUMN IF NOT EXISTS productivity_criteria JSONB;
 
--- 2. Recriar RPC process_webhook_meeting com novos parâmetros
+-- 2. Corrigir unicidade para multi-tenant
+-- O mesmo fireflies_id pode existir para usuários diferentes. A unicidade deve ser por usuário.
+DO $$
+DECLARE
+  duplicate_count INTEGER;
+BEGIN
+  SELECT COUNT(*)
+  INTO duplicate_count
+  FROM (
+    SELECT user_id, fireflies_id
+    FROM public.meetings
+    GROUP BY user_id, fireflies_id
+    HAVING COUNT(*) > 1
+  ) duplicates;
+
+  IF duplicate_count > 0 THEN
+    RAISE NOTICE 'Existem reuniões duplicadas por (user_id, fireflies_id). Resolva as duplicidades antes de aplicar a constraint unique_user_fireflies_id.';
+  ELSE
+    ALTER TABLE public.meetings DROP CONSTRAINT IF EXISTS unique_fireflies_id;
+    ALTER TABLE public.meetings DROP CONSTRAINT IF EXISTS unique_user_fireflies_id;
+    ALTER TABLE public.meetings
+      ADD CONSTRAINT unique_user_fireflies_id UNIQUE (user_id, fireflies_id);
+  END IF;
+END $$;
+
+-- 3. Recriar RPC process_webhook_meeting com novos parâmetros
 DROP FUNCTION IF EXISTS public.process_webhook_meeting;
 
 CREATE OR REPLACE FUNCTION public.process_webhook_meeting(
@@ -55,7 +80,7 @@ BEGIN
     p_productivity_score, p_productivity_reason,
     p_topics_discussed, p_pendencies, p_productivity_criteria
   )
-  ON CONFLICT (fireflies_id) DO UPDATE SET
+  ON CONFLICT (user_id, fireflies_id) DO UPDATE SET
     title = EXCLUDED.title,
     date = EXCLUDED.date,
     duration = EXCLUDED.duration,
