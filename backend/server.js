@@ -149,7 +149,7 @@ async function processMeeting(firefliesId, userId, openAiKey, firefliesApiKey) {
 
     // C. Salvar resultado completo
     const saved = await updateMeetingStatus(firefliesId, userId, 'completed', {
-      title: analysis.titulo || transcriptData.title || 'Reunião Importada',
+      title: transcriptData.title || 'Reunião Importada',
       date: transcriptData.date ? new Date(transcriptData.date).toISOString() : new Date().toISOString(),
       duration: transcriptData.duration || 0,
       meeting_type: analysis.tipo_reuniao,
