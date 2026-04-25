@@ -657,4 +657,46 @@ Listagem detalhada de funcionalidades e melhorias para evolucao continua do prod
 
 ---
 
-*Documento vivo -- atualizado conforme o produto evolui. Ultima revisao: 09/03/2026.*
+## 12. Registro de Atualizacoes
+
+### 25/04/2026 -- Ajustes de seguranca, multi-tenant e UX operacional
+
+**Commit:** `8a929a0` -- `Improve meeting processing security and UX`
+
+Alteracoes registradas:
+
+- Corrigida a modelagem multi-tenant das reunioes: a unicidade passou de `fireflies_id` global para `(user_id, fireflies_id)`, evitando conflito entre usuarios diferentes que processem o mesmo ID do Fireflies.
+- Atualizadas as migrations e schemas Supabase para refletir a constraint `unique_user_fireflies_id` e o `ON CONFLICT (user_id, fireflies_id)`.
+- Adicionado endurecimento basico no backend:
+  - `CORS_ORIGIN` configuravel por ambiente.
+  - limite de payload JSON para `128kb`.
+  - rate limit simples por IP e secret, configuravel por `RATE_LIMIT_WINDOW_MS` e `RATE_LIMIT_MAX`.
+- Atualizados `backend/.env.example` e `docker-compose.yml` com as novas variaveis de ambiente do backend.
+- Corrigido o texto da tela de configuracoes para nao prometer criptografia inexistente das API keys; agora informa corretamente que as chaves sao protegidas por RLS e recomenda criptografia adicional para producao.
+- Melhorada a visualizacao de status no dashboard:
+  - badge para reunioes em `processing`;
+  - badge para reunioes em `error`;
+  - texto de resumo coerente quando a reuniao ainda esta processando ou falhou.
+- Mantidas e integradas as melhorias recentes vindas do remoto:
+  - paginas separadas de cadastro e recuperacao de senha;
+  - sincronizacao de reunioes recentes do Fireflies;
+  - auto-refresh enquanto houver reunioes em processamento.
+- Ajustado o ESLint para ignorar arquivos AppleDouble `._*`, que eram metadados do macOS e quebravam o lint.
+- Validacoes executadas com sucesso:
+  - `npm run lint`;
+  - `npm run build`;
+  - `node --check server.js`;
+  - `git diff --check`.
+
+Observacao operacional:
+
+- Em producao, configurar no backend:
+  - `CORS_ORIGIN=https://n8n-front.v6mtnf.easypanel.host`
+  - `RATE_LIMIT_WINDOW_MS=60000`
+  - `RATE_LIMIT_MAX=30`
+- No frontend, manter `VITE_API_URL` apontando para `https://n8n-backend.v6mtnf.easypanel.host`.
+- A migration `supabase-migration-v2.sql` deve ser executada no SQL Editor do Supabase para aplicar a correcao multi-tenant no banco.
+
+---
+
+*Documento vivo -- atualizado conforme o produto evolui. Ultima revisao: 25/04/2026.*
