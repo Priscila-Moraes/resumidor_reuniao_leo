@@ -30,6 +30,28 @@ app.use(cors({
     return callback(null, false);
   }
 }));
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const requestOrigin = normalizeOrigin(origin);
+  const isAllowedOrigin = !requestOrigin
+    || allowedOrigins.length === 0
+    || allowedOrigins.includes(requestOrigin)
+    || requestOrigin.endsWith('.easypanel.host');
+
+  if (origin && isAllowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'Content-Type, Authorization');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  return next();
+});
 app.use(express.json({ limit: '128kb' }));
 
 const rateLimitStore = new Map();
