@@ -31,13 +31,13 @@ BEGIN
   ) duplicates;
 
   IF duplicate_count > 0 THEN
-    RAISE NOTICE 'Existem reuniões duplicadas por (user_id, fireflies_id). Resolva as duplicidades antes de aplicar a constraint unique_user_fireflies_id.';
-  ELSE
-    ALTER TABLE public.meetings DROP CONSTRAINT IF EXISTS unique_fireflies_id;
-    ALTER TABLE public.meetings DROP CONSTRAINT IF EXISTS unique_user_fireflies_id;
-    ALTER TABLE public.meetings
-      ADD CONSTRAINT unique_user_fireflies_id UNIQUE (user_id, fireflies_id);
+    RAISE EXCEPTION 'Existem reuniões duplicadas por (user_id, fireflies_id). Resolva as duplicidades antes de aplicar a constraint unique_user_fireflies_id.';
   END IF;
+
+  ALTER TABLE public.meetings DROP CONSTRAINT IF EXISTS unique_fireflies_id;
+  ALTER TABLE public.meetings DROP CONSTRAINT IF EXISTS unique_user_fireflies_id;
+  ALTER TABLE public.meetings
+    ADD CONSTRAINT unique_user_fireflies_id UNIQUE (user_id, fireflies_id);
 END $$;
 
 -- 2. Recriar RPC process_webhook_meeting com ON CONFLICT correto
