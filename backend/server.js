@@ -77,6 +77,69 @@ function rateLimit(req, res, next) {
   return next();
 }
 
+function extractFirefliesId(value) {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+
+  if (!trimmed) return null;
+  if (trimmed.includes('::')) return trimmed.split('::').pop();
+
+  try {
+    const url = new URL(trimmed);
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  } catch {
+    // Not a URL, use the raw value.
+  }
+
+  return trimmed;
+}
+
+function getMeetingIdFromWebhookBody(body = {}) {
+  const candidates = [
+    body.meetingId,
+    body.meeting_id,
+    body.transcriptId,
+    body.transcript_id,
+    body.id,
+    body.url,
+    body.meeting_url,
+    body.transcript_url,
+    body.transcript?.id,
+    body.meeting?.id,
+    body.data?.id,
+    body.data?.meetingId,
+    body.data?.meeting_id,
+    body.data?.transcriptId,
+    body.data?.transcript_id,
+    body.data?.url,
+    body.data?.meeting_url,
+    body.data?.transcript_url,
+  ];
+
+  for (const candidate of candidates) {
+    const firefliesId = extractFirefliesId(candidate);
+    if (firefliesId) return firefliesId;
+  }
+
+  return null;
+}
+
+async function isNewFirefliesMeeting(userId, firefliesId) {
+  const { data, error } = await supabase
+    .rpc('get_unprocessed_fireflies_ids', {
+      p_user_id: userId,
+      p_fireflies_ids: [firefliesId]
+    });
+
+  if (error) {
+    console.error('Erro ao verificar reunião existente:', error);
+    throw error;
+  }
+
+  return (data || []).some(row => row.fireflies_id === firefliesId);
+}
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
@@ -92,12 +155,12 @@ app.get('/health', (req, res) => {
 
 app.post('/api/webhooks/fireflies/:user_secret', rateLimit, async (req, res) => {
   const { user_secret } = req.params;
-  const { meetingId } = req.body;
+  const meetingId = getMeetingIdFromWebhookBody(req.body);
 
   console.log('Webhook recebido:', JSON.stringify(req.body));
 
-  if (!meetingId || typeof meetingId !== 'string') {
-    return res.status(400).json({ error: 'meetingId é obrigatório' });
+  if (!meetingId) {
+    return res.status(400).json({ error: 'ID da reunião/transcrição é obrigatório' });
   }
 
   if (meetingId.length > 200) {
@@ -123,6 +186,11 @@ app.post('/api/webhooks/fireflies/:user_secret', rateLimit, async (req, res) => 
     if (!fireflies_api_key) {
       console.error(`Usuário ${userId} não configurou a Fireflies API Key.`);
       return res.status(400).json({ error: 'Fireflies API Key não configurada para este usuário.' });
+    }
+
+    const shouldProcess = await isNewFirefliesMeeting(userId, meetingId);
+    if (!shouldProcess) {
+      return res.status(200).json({ message: 'Reunião já existe no painel. Webhook ignorado.', skipped: true });
     }
 
     res.status(202).json({ message: 'Webhook recebido, processamento iniciado assincronamente.' });

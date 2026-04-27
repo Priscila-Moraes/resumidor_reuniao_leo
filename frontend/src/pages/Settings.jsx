@@ -18,8 +18,7 @@ export default function Settings() {
 
     const backendUrl = import.meta.env.VITE_API_URL || '';
 
-    // Webhook URL usa o domínio atual do browser (nginx faz proxy para o backend)
-    const webhookBaseUrl = `${window.location.origin}/api/webhooks/fireflies/`;
+    const webhookBaseUrl = `${backendUrl || window.location.origin}/api/webhooks/fireflies/`;
 
     useEffect(() => {
         async function loadProfile() {
