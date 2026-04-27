@@ -1,10 +1,16 @@
 -- ============================================================
 -- AI Meet — Schema Completo e Atualizado
--- Estado atual após todas as migrations (v1 a v6)
+-- Estado atual após todas as migrations (v1 a v7)
 -- Execute do zero para recriar o banco do zero corretamente
 -- ============================================================
 --
 -- Registro técnico mais recente:
+--   v7 (27/04/2026)
+--   - Sincronização Fireflies passa a ignorar qualquer reunião já existente
+--     para o usuário, independentemente do status (processing, completed ou error).
+--   - Processamento manual também verifica no frontend se o fireflies_id já
+--     existe antes de chamar o backend.
+--
 --   v6 (25/04/2026)
 --   - Corrige unicidade multi-tenant de reuniões:
 --     de UNIQUE(fireflies_id) para UNIQUE(user_id, fireflies_id).
@@ -233,7 +239,7 @@ $$;
 
 -- ============================================================
 -- RPC: get_unprocessed_fireflies_ids
--- Retorna IDs do Fireflies que ainda não foram processados
+-- Retorna IDs do Fireflies que ainda não existem para o usuário
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.get_unprocessed_fireflies_ids(
   p_user_id UUID,
@@ -251,7 +257,6 @@ BEGIN
   SELECT m.fireflies_id
   FROM public.meetings m
   WHERE m.user_id = p_user_id
-    AND m.status = 'completed'
     AND m.fireflies_id = ANY(p_fireflies_ids);
 END;
 $$;

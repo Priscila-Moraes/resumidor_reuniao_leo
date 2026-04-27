@@ -174,6 +174,27 @@ export default function Dashboard() {
         const meetingId = extractFirefliesId(manualId);
 
         try {
+            const { data: existingMeeting, error: existingError } = await supabase
+                .from('meetings')
+                .select('id, title, status')
+                .eq('fireflies_id', meetingId)
+                .maybeSingle();
+
+            if (existingError) {
+                setProcessMessage({ type: 'error', text: 'Erro ao verificar se a reunião já existe: ' + existingError.message });
+                setProcessing(false);
+                return;
+            }
+
+            if (existingMeeting) {
+                setProcessMessage({
+                    type: 'error',
+                    text: `Esta reunião já está no painel: "${existingMeeting.title || meetingId}".`
+                });
+                setProcessing(false);
+                return;
+            }
+
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('fireflies_webhook_secret')
