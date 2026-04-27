@@ -20,9 +20,6 @@ REGRAS IMPORTANTES:
 
 Retorne este JSON exato:
 {
-  "titulo": "string",
-  // Título curto e descritivo (máx 60 caracteres). Ex: "Alinhamento Sprint 12 - Time de Produto"
-
   "tipo_reuniao": "string",
   // SEMPRE em português. Valores permitidos: "Equipe", "Vendas", "Projeto", "Alinhamento", "Feedback", "Entrevista", "Planejamento", "Retrospectiva", "Daily", "Brainstorm", "Treinamento", "1:1", "Apresentação", "Análise"
 

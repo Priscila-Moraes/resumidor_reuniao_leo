@@ -245,7 +245,7 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
       await supabase.rpc('process_webhook_meeting', {
         p_user_id: userId,
         p_fireflies_id: meetingData.fireflies_id,
-        p_title: analysis.titulo || meetingData.title,
+        p_title: meetingData.title,
         p_date: meetingData.date,
         p_duration: meetingData.duration,
         p_meeting_type: analysis.tipo_reuniao,
