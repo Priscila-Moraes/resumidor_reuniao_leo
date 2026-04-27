@@ -7,17 +7,27 @@ const { analyzeTranscript } = require('./services/openai');
 
 const app = express();
 
+function normalizeOrigin(origin) {
+  if (!origin) return '';
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return origin.replace(/\/+$/, '');
+  }
+}
+
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
-  .map(origin => origin.trim())
+  .map(origin => normalizeOrigin(origin.trim()))
   .filter(Boolean);
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    const requestOrigin = normalizeOrigin(origin);
+    if (!requestOrigin || allowedOrigins.length === 0 || allowedOrigins.includes(requestOrigin)) {
       return callback(null, true);
     }
-    return callback(new Error('Origem não permitida pelo CORS.'));
+    return callback(null, false);
   }
 }));
 app.use(express.json({ limit: '128kb' }));
