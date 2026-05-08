@@ -51,14 +51,44 @@ export default function Dashboard() {
         fetchMeetings();
     }, [fetchMeetings]);
 
-    // Auto-refresh enquanto houver reuniões sendo processadas
+    // Supabase Realtime — atualiza o estado instantaneamente quando o banco muda
+    useEffect(() => {
+        if (!user) return;
+
+        const channel = supabase
+            .channel(`meetings-realtime-${user.id}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'meetings' },
+                (payload) => {
+                    if (payload.eventType === 'UPDATE') {
+                        setMeetings(prev =>
+                            prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m)
+                        );
+                    } else if (payload.eventType === 'INSERT') {
+                        setMeetings(prev => {
+                            const exists = prev.some(m => m.id === payload.new.id);
+                            if (exists) return prev.map(m => m.id === payload.new.id ? payload.new : m);
+                            return [payload.new, ...prev];
+                        });
+                    } else if (payload.eventType === 'DELETE') {
+                        setMeetings(prev => prev.filter(m => m.id !== payload.old.id));
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [user]);
+
+    // Polling de fallback enquanto houver reuniões em processamento
     useEffect(() => {
         const hasProcessing = meetings.some(m => m.status === 'processing');
         if (!hasProcessing) return;
 
         const interval = setInterval(() => {
             fetchMeetings();
-        }, 5000);
+        }, 10000);
 
         return () => clearInterval(interval);
     }, [fetchMeetings, meetings]);
