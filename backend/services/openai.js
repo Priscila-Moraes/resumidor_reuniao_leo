@@ -63,37 +63,47 @@ Retorne este JSON exato:
   `;
 
     const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
-    const MODELS = ['gpt-4o-mini', 'gpt-4o'];
 
-    let lastError;
-    for (const model of MODELS) {
-        try {
-            const apiCall = openai.chat.completions.create({
-                model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: `Analise a transcrição abaixo e retorne o resultado em formato json.\n\nAqui está a transcrição completa:\n\n${transcriptText}` }
-                ],
-                response_format: { type: 'json_object' },
-            });
+    // Tenta gpt-5-mini (Responses API) primeiro, depois fallback para chat.completions
+    try {
+        const apiCall = openai.responses.create({
+            model: 'gpt-5-mini',
+            instructions: systemPrompt,
+            input: `Analise a transcrição abaixo e retorne o resultado em formato json.\n\nAqui está a transcrição completa:\n\n${transcriptText}`,
+            text: { format: { type: 'json_object' } },
+            reasoning: { effort: 'low' },
+            store: false
+        });
 
-            const timeout = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('OpenAI timeout: análise demorou mais de 5 minutos')), TIMEOUT_MS)
-            );
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('OpenAI timeout: análise demorou mais de 5 minutos')), TIMEOUT_MS)
+        );
 
-            const response = await Promise.race([apiCall, timeout]);
-            console.log(`OpenAI respondeu (${model}). Tokens usados: ${response.usage?.total_tokens || 'N/A'}`);
+        const response = await Promise.race([apiCall, timeout]);
+        console.log(`OpenAI respondeu (gpt-5-mini). Tokens usados: ${response.usage?.total_tokens || 'N/A'}`);
+        return JSON.parse(response.output_text);
 
-            const parsedData = JSON.parse(response.choices[0].message.content);
-            return parsedData;
-
-        } catch (error) {
-            console.error(`Erro com modelo ${model}:`, error?.message || error?.status || error);
-            lastError = error;
-        }
+    } catch (primaryError) {
+        console.warn(`gpt-5-mini falhou, tentando gpt-4o-mini: ${primaryError?.message}`);
     }
 
-    throw lastError;
+    // Fallback: gpt-4o-mini via chat.completions
+    const fallbackCall = openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Analise a transcrição abaixo e retorne o resultado em formato json.\n\nAqui está a transcrição completa:\n\n${transcriptText}` }
+        ],
+        response_format: { type: 'json_object' },
+    });
+
+    const fallbackTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('OpenAI timeout: análise demorou mais de 5 minutos')), TIMEOUT_MS)
+    );
+
+    const fallbackResponse = await Promise.race([fallbackCall, fallbackTimeout]);
+    console.log(`OpenAI respondeu (gpt-4o-mini fallback). Tokens usados: ${fallbackResponse.usage?.total_tokens || 'N/A'}`);
+    return JSON.parse(fallbackResponse.choices[0].message.content);
 }
 
 module.exports = {
