@@ -313,6 +313,24 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
       return res.status(400).json({ error: 'Sem transcrição salva. Configure sua chave do Fireflies nas configurações.' });
     }
 
+    // Marca como processing imediatamente para o frontend ver o spinner
+    await supabase.rpc('process_webhook_meeting', {
+      p_user_id: userId,
+      p_fireflies_id: meetingData.fireflies_id,
+      p_title: meetingData.title,
+      p_date: meetingData.date,
+      p_duration: meetingData.duration,
+      p_meeting_type: null,
+      p_objective: null,
+      p_executive_summary: null,
+      p_decisions: null,
+      p_action_items: null,
+      p_transcript: meetingData.transcript,
+      p_status: 'processing',
+      p_productivity_score: null,
+      p_productivity_reason: null
+    });
+
     res.status(202).json({ message: 'Reprocessamento iniciado.' });
 
     try {
@@ -328,24 +346,6 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
       } else {
         transcriptText = transcriptSentences.map(s => `${s.speaker_name}: ${s.text}`).join('\n');
       }
-
-      // Atualizar status para processing
-      await supabase.rpc('process_webhook_meeting', {
-        p_user_id: userId,
-        p_fireflies_id: meetingData.fireflies_id,
-        p_title: meetingData.title,
-        p_date: meetingData.date,
-        p_duration: meetingData.duration,
-        p_meeting_type: null,
-        p_objective: null,
-        p_executive_summary: null,
-        p_decisions: null,
-        p_action_items: null,
-        p_transcript: transcriptSentences,
-        p_status: 'processing',
-        p_productivity_score: null,
-        p_productivity_reason: null
-      });
 
       // Analisar com OpenAI
       const analysis = await analyzeTranscript(transcriptText, openai_api_key);
