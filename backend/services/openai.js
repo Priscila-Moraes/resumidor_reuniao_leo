@@ -94,7 +94,6 @@ Retorne este JSON exato:
     }
 
     throw lastError;
-    }
 }
 
 module.exports = {
