@@ -292,13 +292,13 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
       return res.status(401).json({ error: 'Secret inválido ou usuário não encontrado.' });
     }
 
-    const { id: userId, openai_api_key } = profile[0];
+    const { id: userId, openai_api_key, fireflies_api_key } = profile[0];
 
     if (!openai_api_key) {
       return res.status(400).json({ error: 'OpenAI API Key não configurada.' });
     }
 
-    // 2. Buscar reunião do banco (com transcrição já salva)
+    // 2. Buscar reunião do banco
     const { data: meeting, error: meetingError } = await supabase
       .rpc('get_meeting_for_reprocess', { p_meeting_id: meetingId, p_user_id: userId });
 
@@ -307,41 +307,50 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
     }
 
     const meetingData = meeting[0];
+    const semTranscricao = !meetingData.transcript || meetingData.transcript.length === 0;
 
-    if (!meetingData.transcript || meetingData.transcript.length === 0) {
-      return res.status(400).json({ error: 'Transcrição não encontrada no banco. Tente reprocessar pelo webhook.' });
+    if (semTranscricao && !fireflies_api_key) {
+      return res.status(400).json({ error: 'Sem transcrição salva. Configure sua chave do Fireflies nas configurações.' });
     }
 
     res.status(202).json({ message: 'Reprocessamento iniciado.' });
 
-    // 3. Reconstruir texto da transcrição a partir das sentences salvas
-    const transcriptText = meetingData.transcript
-      .map(s => `${s.speaker_name}: ${s.text}`)
-      .join('\n');
-
-    // 4. Atualizar status para processing
-    await supabase.rpc('process_webhook_meeting', {
-      p_user_id: userId,
-      p_fireflies_id: meetingData.fireflies_id,
-      p_title: meetingData.title,
-      p_date: meetingData.date,
-      p_duration: meetingData.duration,
-      p_meeting_type: null,
-      p_objective: null,
-      p_executive_summary: null,
-      p_decisions: null,
-      p_action_items: null,
-      p_transcript: meetingData.transcript,
-      p_status: 'processing',
-      p_productivity_score: null,
-      p_productivity_reason: null
-    });
-
     try {
-      // 5. Analisar com OpenAI
+      let transcriptSentences = meetingData.transcript || [];
+      let transcriptText;
+
+      if (semTranscricao) {
+        // Sem transcrição salva: busca novamente no Fireflies
+        console.log(`[REPROCESS] Buscando transcrição no Fireflies para ${meetingData.fireflies_id}`);
+        const transcriptData = await fetchMeetingTranscript(meetingData.fireflies_id, fireflies_api_key);
+        transcriptSentences = transcriptData.sentences || [];
+        transcriptText = transcriptData.text;
+      } else {
+        transcriptText = transcriptSentences.map(s => `${s.speaker_name}: ${s.text}`).join('\n');
+      }
+
+      // Atualizar status para processing
+      await supabase.rpc('process_webhook_meeting', {
+        p_user_id: userId,
+        p_fireflies_id: meetingData.fireflies_id,
+        p_title: meetingData.title,
+        p_date: meetingData.date,
+        p_duration: meetingData.duration,
+        p_meeting_type: null,
+        p_objective: null,
+        p_executive_summary: null,
+        p_decisions: null,
+        p_action_items: null,
+        p_transcript: transcriptSentences,
+        p_status: 'processing',
+        p_productivity_score: null,
+        p_productivity_reason: null
+      });
+
+      // Analisar com OpenAI
       const analysis = await analyzeTranscript(transcriptText, openai_api_key);
 
-      // 6. Atualizar com resultado
+      // Salvar resultado
       await supabase.rpc('process_webhook_meeting', {
         p_user_id: userId,
         p_fireflies_id: meetingData.fireflies_id,
@@ -353,7 +362,7 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
         p_executive_summary: analysis.resumo_executivo,
         p_decisions: analysis.decisoes,
         p_action_items: analysis.itens_acao,
-        p_transcript: meetingData.transcript,
+        p_transcript: transcriptSentences,
         p_status: 'completed',
         p_productivity_score: analysis.aproveitamento_nota,
         p_productivity_reason: analysis.aproveitamento_motivo,
@@ -362,7 +371,7 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
         p_productivity_criteria: analysis.aproveitamento_criterios || null
       });
 
-      console.log(`Reunião ${meetingId} reprocessada com sucesso (do banco)!`);
+      console.log(`Reunião ${meetingId} reprocessada com sucesso!`);
     } catch (error) {
       console.error(`Falha ao reprocessar reunião ${meetingId}:`, error);
       await supabase.rpc('process_webhook_meeting', {
