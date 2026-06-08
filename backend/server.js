@@ -150,7 +150,7 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl || 'https://mock.supabase.co', supabaseKey || 'mock_key');
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', version: '2026-06-02-fix-reprocess' });
+  res.json({ status: 'OK', version: '2026-06-08-hybrid-pending' });
 });
 
 app.post('/api/webhooks/fireflies/:user_secret', rateLimit, async (req, res) => {
@@ -176,29 +176,17 @@ app.post('/api/webhooks/fireflies/:user_secret', rateLimit, async (req, res) => 
       return res.status(401).json({ error: 'Webhook Secret Inválido ou Usuário não encontrado.' });
     }
 
-    const { id: userId, openai_api_key, fireflies_api_key } = profile[0];
-
-    if (!openai_api_key) {
-      console.error(`Usuário ${userId} não configurou a OpenAI API Key.`);
-      return res.status(400).json({ error: 'OpenAI API Key não configurada para este usuário.' });
-    }
-
-    if (!fireflies_api_key) {
-      console.error(`Usuário ${userId} não configurou a Fireflies API Key.`);
-      return res.status(400).json({ error: 'Fireflies API Key não configurada para este usuário.' });
-    }
+    const { id: userId } = profile[0];
 
     const shouldProcess = await isNewFirefliesMeeting(userId, meetingId);
     if (!shouldProcess) {
       return res.status(200).json({ message: 'Reunião já existe no painel. Webhook ignorado.', skipped: true });
     }
 
-    res.status(202).json({ message: 'Webhook recebido, processamento iniciado assincronamente.' });
+    // Salva como 'pending' — usuário escolhe quando processar com IA
+    await updateMeetingStatus(meetingId, userId, 'pending', {});
 
-    // 2. Processar a reunião assincronamente
-    processMeeting(meetingId, userId, openai_api_key, fireflies_api_key).catch(err => {
-      console.error('Erro no processAssync:', err);
-    });
+    return res.status(202).json({ message: 'Reunião importada. Clique em ↺ no painel para analisar com IA.' });
 
   } catch (error) {
     console.error('Erro no Webhook:', error);
@@ -415,13 +403,10 @@ app.post('/api/sync/fireflies', async (req, res) => {
       return res.status(401).json({ error: 'Secret inválido ou usuário não encontrado.' });
     }
 
-    const { id: userId, openai_api_key, fireflies_api_key } = profile[0];
+    const { id: userId, fireflies_api_key } = profile[0];
 
     if (!fireflies_api_key) {
       return res.status(400).json({ error: 'Fireflies API Key não configurada.' });
-    }
-    if (!openai_api_key) {
-      return res.status(400).json({ error: 'OpenAI API Key não configurada.' });
     }
 
     // Buscar lista de transcrições recentes no Fireflies
@@ -433,7 +418,7 @@ app.post('/api/sync/fireflies', async (req, res) => {
 
     const allIds = transcripts.map(t => t.id);
 
-    // Filtrar apenas os que ainda não foram processados com sucesso
+    // Filtrar apenas os que ainda não existem no painel
     const { data: unprocessed, error: checkError } = await supabase
       .rpc('get_unprocessed_fireflies_ids', { p_user_id: userId, p_fireflies_ids: allIds });
 
@@ -448,8 +433,7 @@ app.post('/api/sync/fireflies', async (req, res) => {
       return res.json({ message: 'Todas as reuniões já estão sincronizadas.', imported: 0 });
     }
 
-    // Salvar registros como 'processing' imediatamente usando metadados já disponíveis
-    // Assim aparecem no dashboard na hora, mesmo antes da transcrição ser buscada
+    // Salvar como 'pending' — usuário escolhe quais analisar com IA
     const metaMap = {};
     transcripts.forEach(t => { metaMap[t.id] = t; });
 
@@ -461,28 +445,17 @@ app.post('/api/sync/fireflies', async (req, res) => {
         p_title: meta.title || 'Reunião Importada',
         p_date: meta.date ? new Date(meta.date).toISOString() : new Date().toISOString(),
         p_duration: meta.duration || 0,
-        p_status: 'processing',
+        p_status: 'pending',
         p_meeting_type: null, p_objective: null, p_executive_summary: null,
         p_decisions: null, p_action_items: null, p_transcript: null,
         p_productivity_score: null, p_productivity_reason: null
       });
     }
 
-    res.status(202).json({
-      message: `Sincronizando ${unprocessedIds.length} reunião(ões). Atualize a página para ver.`,
+    return res.status(202).json({
+      message: `${unprocessedIds.length} reunião(ões) importada(s). Clique em ↺ em cada uma para analisar com IA.`,
       imported: unprocessedIds.length
     });
-
-    // Processar cada reunião em background (sequencial para evitar rate limit)
-    (async () => {
-      for (const firefliesId of unprocessedIds) {
-        try {
-          await processMeeting(firefliesId, userId, openai_api_key, fireflies_api_key);
-        } catch (err) {
-          console.error(`Erro ao processar ${firefliesId} na sincronização:`, err);
-        }
-      }
-    })();
 
   } catch (error) {
     console.error('Erro no sync:', error);

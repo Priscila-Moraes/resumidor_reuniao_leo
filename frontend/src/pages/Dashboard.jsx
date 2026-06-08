@@ -248,33 +248,10 @@ export default function Dashboard() {
             const data = await response.json();
 
             if (response.ok) {
-                setProcessMessage({ type: 'success', text: 'Reunião enviada para processamento! Ela aparecerá em instantes.' });
+                setProcessMessage({ type: 'success', text: 'Reunião importada! Ela aparecerá em instantes. Clique em ↺ para analisar com IA.' });
                 setManualId('');
-                // Salva registro 'processing' via RPC (não depende do cache do schema)
-                const { data: insertedRow, error: insertError } = await supabase
-                    .rpc('create_processing_meeting', { p_fireflies_id: meetingId });
-                if (insertError) {
-                    setProcessMessage({ type: 'error', text: `Erro ao salvar no banco: ${insertError.message} (código: ${insertError.code})` });
-                } else {
-                    const inserted = typeof insertedRow === 'object' ? insertedRow : null;
-                    setMeetings(prev => {
-                        const filtered = prev.filter(m => m.fireflies_id !== meetingId);
-                        const newEntry = inserted || {
-                            id: `temp-${meetingId}`,
-                            fireflies_id: meetingId,
-                            title: 'Reunião Importada',
-                            date: new Date().toISOString(),
-                            duration: 0,
-                            status: 'processing',
-                            executive_summary: null,
-                            meeting_type: null,
-                            productivity_score: null,
-                        };
-                        return [newEntry, ...filtered];
-                    });
-                }
-                setTimeout(() => fetchMeetings(), 5000);
-                setTimeout(() => fetchMeetings(), 15000);
+                setTimeout(() => fetchMeetings(), 3000);
+                setTimeout(() => fetchMeetings(), 10000);
             } else {
                 setProcessMessage({ type: 'error', text: data.error || 'Erro ao processar reunião.' });
             }
@@ -401,6 +378,13 @@ export default function Dashboard() {
     };
 
     const getStatusBadge = (status) => {
+        if (status === 'pending') {
+            return {
+                label: 'Aguardando análise',
+                className: 'bg-amber-100 text-amber-700',
+                icon: <Clock className="w-3 h-3" />
+            };
+        }
         if (status === 'processing') {
             return {
                 label: 'Processando',
@@ -720,11 +704,13 @@ export default function Dashboard() {
 
                                 <p className="text-gray-700 text-sm truncate">
                                     <span className="font-semibold text-gray-900">Resumo da IA: </span>
-                                    {m.status === 'processing'
-                                        ? 'A análise ainda está em andamento.'
-                                        : m.status === 'error'
-                                            ? 'Falha ao processar. Use o botão de reprocessar.'
-                                            : m.executive_summary || 'Sem resumo disponível.'}
+                                    {m.status === 'pending'
+                                        ? 'Aguardando análise. Clique em ↺ para analisar com IA.'
+                                        : m.status === 'processing'
+                                            ? 'A análise ainda está em andamento.'
+                                            : m.status === 'error'
+                                                ? 'Falha ao processar. Use o botão de reprocessar.'
+                                                : m.executive_summary || 'Sem resumo disponível.'}
                                 </p>
                             </div>
                         );
