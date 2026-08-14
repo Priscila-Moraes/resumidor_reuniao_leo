@@ -27,6 +27,7 @@ export function AuthProvider({ children }) {
         signUp: (email, password) => supabase.auth.signUp({ email, password }),
         signOut: () => supabase.auth.signOut(),
         signInWithGoogle: () => supabase.auth.signInWithOAuth({ provider: 'google' }),
+        updatePassword: (password) => supabase.auth.updateUser({ password }),
         resetPassword: (email) => supabase.auth.resetPasswordForEmail(email, {
             redirectTo: `${window.location.origin}/nova-senha`
         })
