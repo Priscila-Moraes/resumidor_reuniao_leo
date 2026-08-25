@@ -102,7 +102,7 @@ export default function Settings() {
                             Integração OpenAI
                         </h2>
                         <p className="text-sm text-gray-500 mt-1">Configure sua chave de API para habilitar a análise de inteligência artificial.</p>
-                        <p className="text-xs text-blue-600 bg-blue-50 mt-2 px-3 py-1.5 rounded-lg inline-block font-medium">Modelo utilizado: GPT-5 Mini (Responses API)</p>
+                        <p className="text-xs text-blue-600 bg-blue-50 mt-2 px-3 py-1.5 rounded-lg inline-block font-medium">Modelo utilizado: GPT-5.6 Luna</p>
                     </div>
 
                     <div className="p-6">

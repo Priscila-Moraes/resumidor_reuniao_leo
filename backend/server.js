@@ -477,7 +477,7 @@ app.post('/api/validate-keys', async (req, res) => {
       await openai.chat.completions.create({
         model: 'gpt-5.6-luna',
         messages: [{ role: 'user', content: 'ok' }],
-        max_tokens: 5,
+        max_completion_tokens: 5,
       });
       result.openai = { valid: true, message: 'Chave válida (gpt-5.6-luna ok)' };
     } catch (err) {
