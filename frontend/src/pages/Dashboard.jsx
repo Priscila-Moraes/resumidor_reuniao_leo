@@ -334,7 +334,10 @@ export default function Dashboard() {
             const response = await fetch(`${backendUrl}/api/meetings/${meeting.id}/reprocess`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_secret: profile.fireflies_webhook_secret }),
+                body: JSON.stringify({
+                    user_secret: profile.fireflies_webhook_secret,
+                    fireflies_id: meeting.fireflies_id
+                }),
             });
 
             if (response.ok) {

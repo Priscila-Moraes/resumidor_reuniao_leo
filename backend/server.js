@@ -264,8 +264,8 @@ async function processMeeting(firefliesId, userId, openAiKey, firefliesApiKey) {
 
 // Endpoint para reprocessar análise usando transcrição já salva no banco
 app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
-  const { meetingId } = req.params;
-  const { user_secret } = req.body;
+    const { meetingId } = req.params;
+  const { user_secret, fireflies_id: bodyFirefliesId } = req.body;
 
   if (!user_secret || typeof user_secret !== 'string') {
     return res.status(400).json({ error: 'user_secret é obrigatório' });
@@ -295,7 +295,12 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
     }
 
     const meetingData = meeting[0];
+    const firefliesId = bodyFirefliesId || meetingData.fireflies_id || meetingData.firefliesId;
     const semTranscricao = !meetingData.transcript || meetingData.transcript.length === 0;
+
+    if (!firefliesId && semTranscricao) {
+      return res.status(400).json({ error: 'ID do Fireflies não encontrado para esta reunião.' });
+    }
 
     if (semTranscricao && !fireflies_api_key) {
       return res.status(400).json({ error: 'Sem transcrição salva. Configure sua chave do Fireflies nas configurações.' });
@@ -304,7 +309,7 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
     // Marca como processing imediatamente para o frontend ver o spinner
     await supabase.rpc('process_webhook_meeting', {
       p_user_id: userId,
-      p_fireflies_id: meetingData.fireflies_id,
+      p_fireflies_id: firefliesId,
       p_title: meetingData.title,
       p_date: meetingData.date,
       p_duration: meetingData.duration,
@@ -324,27 +329,36 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
     try {
       let transcriptSentences = meetingData.transcript || [];
       let transcriptText;
+      let meetingTitle = meetingData.title;
+      let meetingDuration = meetingData.duration;
+      let meetingDate = meetingData.date;
 
       if (semTranscricao) {
         // Sem transcrição salva: busca novamente no Fireflies
-        console.log(`[REPROCESS] Buscando transcrição no Fireflies para ${meetingData.fireflies_id}`);
-        const transcriptData = await fetchMeetingTranscript(meetingData.fireflies_id, fireflies_api_key);
+        console.log(`[REPROCESS] Buscando transcrição no Fireflies para ${firefliesId}`);
+        const transcriptData = await fetchMeetingTranscript(firefliesId, fireflies_api_key);
         transcriptSentences = transcriptData.sentences || [];
         transcriptText = transcriptData.text;
+        if (transcriptData.title && transcriptData.title !== 'Reunião Importada') {
+          meetingTitle = transcriptData.title;
+        }
+        if (transcriptData.duration) meetingDuration = transcriptData.duration;
+        if (transcriptData.date) meetingDate = new Date(transcriptData.date).toISOString();
       } else {
         transcriptText = transcriptSentences.map(s => `${s.speaker_name}: ${s.text}`).join('\n');
       }
 
       // Analisar com OpenAI
+      console.log(`[REPROCESS] Analisando com OpenAI (${firefliesId})...`);
       const analysis = await analyzeTranscript(transcriptText, openai_api_key);
 
       // Salvar resultado
       await supabase.rpc('process_webhook_meeting', {
         p_user_id: userId,
-        p_fireflies_id: meetingData.fireflies_id,
-        p_title: meetingData.title,
-        p_date: meetingData.date,
-        p_duration: meetingData.duration,
+        p_fireflies_id: firefliesId,
+        p_title: meetingTitle || 'Reunião Importada',
+        p_date: meetingDate || new Date().toISOString(),
+        p_duration: meetingDuration || 0,
         p_meeting_type: analysis.tipo_reuniao,
         p_objective: analysis.objetivo,
         p_executive_summary: analysis.resumo_executivo,
@@ -359,12 +373,12 @@ app.post('/api/meetings/:meetingId/reprocess', rateLimit, async (req, res) => {
         p_productivity_criteria: analysis.aproveitamento_criterios || null
       });
 
-      console.log(`Reunião ${meetingId} reprocessada com sucesso!`);
+      console.log(`Reunião ${meetingId} (${firefliesId}) reprocessada com sucesso!`);
     } catch (error) {
-      console.error(`Falha ao reprocessar reunião ${meetingId}:`, error);
+      console.error(`Falha ao reprocessar reunião ${meetingId}:`, error?.message || error);
       await supabase.rpc('process_webhook_meeting', {
         p_user_id: userId,
-        p_fireflies_id: meetingData.fireflies_id,
+        p_fireflies_id: firefliesId,
         p_title: meetingData.title,
         p_date: meetingData.date,
         p_duration: meetingData.duration,
