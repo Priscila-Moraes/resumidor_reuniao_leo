@@ -56,7 +56,11 @@ async function fetchMeetingTranscript(firefliesId, apiKey) {
 
         // Retorna as sentences e também concatena o texto bruto para análise da OpenAI
         const sentences = transcriptData.sentences || [];
-        const text = sentences.map(s => `${s.speaker_name}: ${s.text}`).join('\n');
+        const text = sentences.map(s => `${s.speaker_name}: ${s.text}`).join('\n').trim();
+
+        if (sentences.length === 0 || !text) {
+            throw new Error(`A reunião "${transcriptData.title || firefliesId}" não possui áudio/frases transcritas no Fireflies (duração: ${transcriptData.duration || 0}m).`);
+        }
 
         return {
             sentences,
