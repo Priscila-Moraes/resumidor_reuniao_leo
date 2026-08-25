@@ -150,7 +150,7 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl || 'https://mock.supabase.co', supabaseKey || 'mock_key');
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', version: '2026-06-08-hybrid-pending' });
+  res.json({ status: 'OK', version: '2026-08-25-gpt-5.6-luna' });
 });
 
 app.post('/api/webhooks/fireflies/:user_secret', rateLimit, async (req, res) => {
