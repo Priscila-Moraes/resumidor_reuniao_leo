@@ -475,11 +475,11 @@ app.post('/api/validate-keys', async (req, res) => {
       const OpenAI = require('openai');
       const openai = new OpenAI({ apiKey: openai_key });
       await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5.6-luna',
         messages: [{ role: 'user', content: 'ok' }],
         max_tokens: 5,
       });
-      result.openai = { valid: true, message: 'Chave válida (gpt-4o-mini ok)' };
+      result.openai = { valid: true, message: 'Chave válida (gpt-5.6-luna ok)' };
     } catch (err) {
       result.openai = { valid: false, message: `Erro: ${err?.message || err?.status || 'sem permissão'}` };
     }

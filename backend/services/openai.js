@@ -63,16 +63,17 @@ Retorne este JSON exato:
   `;
 
     const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
+    const userMessage = `Analise a transcrição abaixo e retorne o resultado em formato json.\n\nAqui está a transcrição completa:\n\n${transcriptText}`;
 
-    // Tenta gpt-5-mini (Responses API) primeiro, depois fallback para chat.completions
+    // Primário: gpt-5.6-luna — rápido, barato ($0.20/1M input, $1.20/1M output)
     try {
-        const apiCall = openai.responses.create({
-            model: 'gpt-5-mini',
-            instructions: systemPrompt,
-            input: `Analise a transcrição abaixo e retorne o resultado em formato json.\n\nAqui está a transcrição completa:\n\n${transcriptText}`,
-            text: { format: { type: 'json_object' } },
-            reasoning: { effort: 'low' },
-            store: false
+        const apiCall = openai.chat.completions.create({
+            model: 'gpt-5.6-luna',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userMessage }
+            ],
+            response_format: { type: 'json_object' },
         });
 
         const timeout = new Promise((_, reject) =>
@@ -80,19 +81,19 @@ Retorne este JSON exato:
         );
 
         const response = await Promise.race([apiCall, timeout]);
-        console.log(`OpenAI respondeu (gpt-5-mini). Tokens usados: ${response.usage?.total_tokens || 'N/A'}`);
-        return JSON.parse(response.output_text);
+        console.log(`OpenAI respondeu (gpt-5.6-luna). Tokens usados: ${response.usage?.total_tokens || 'N/A'}`);
+        return JSON.parse(response.choices[0].message.content);
 
     } catch (primaryError) {
-        console.warn(`gpt-5-mini falhou, tentando gpt-4o-mini: ${primaryError?.message}`);
+        console.warn(`gpt-5.6-luna falhou, tentando gpt-5.6-terra: ${primaryError?.message}`);
     }
 
-    // Fallback: gpt-4o-mini via chat.completions
+    // Fallback: gpt-5.6-terra — mais robusto ($2.00/1M input, $12.00/1M output)
     const fallbackCall = openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5.6-terra',
         messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Analise a transcrição abaixo e retorne o resultado em formato json.\n\nAqui está a transcrição completa:\n\n${transcriptText}` }
+            { role: 'user', content: userMessage }
         ],
         response_format: { type: 'json_object' },
     });
@@ -102,7 +103,7 @@ Retorne este JSON exato:
     );
 
     const fallbackResponse = await Promise.race([fallbackCall, fallbackTimeout]);
-    console.log(`OpenAI respondeu (gpt-4o-mini fallback). Tokens usados: ${fallbackResponse.usage?.total_tokens || 'N/A'}`);
+    console.log(`OpenAI respondeu (gpt-5.6-terra fallback). Tokens usados: ${fallbackResponse.usage?.total_tokens || 'N/A'}`);
     return JSON.parse(fallbackResponse.choices[0].message.content);
 }
 

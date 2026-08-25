@@ -42,7 +42,7 @@ Usar a URL completa **com o secret no final**:
 - **Backend:** Node.js + Express (JavaScript, `server.js`)
 - **Auth + DB:** Supabase (RLS ativado, RPCs com SECURITY DEFINER)
 - **Transcrição:** Fireflies.ai (GraphQL API)
-- **IA:** OpenAI `gpt-4o-mini` via `chat.completions` (padrão estável)
+- **IA:** OpenAI `gpt-5.6-luna` via `chat.completions` (primário) com fallback `gpt-5.6-terra`
 - **Infraestrutura:** Docker + EasyPanel VPS
 
 ## Problemas Conhecidos e Soluções (sessão 2026-06-02)
